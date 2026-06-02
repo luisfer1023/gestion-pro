@@ -2,10 +2,13 @@ require('dotenv').config();
 const express = require('express');
 const cors    = require('cors');
 const path    = require('path');
+const bcrypt  = require('bcryptjs');
+const jwt     = require('jsonwebtoken');
 const { MongoClient, ObjectId } = require('mongodb');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
+const JWT_SECRET = process.env.JWT_SECRET || 'gestionpro_secret_2024';
 
 app.use(cors());
 app.use(express.json());
@@ -27,86 +30,132 @@ async function connectDB() {
   return db;
 }
 
-// ── Serializa ObjectId → { $oid } para el frontend ──
+// ── Middleware: verificar JWT ────────────────────────
+function authRequired(req, res, next) {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'No autorizado' });
+  }
+  try {
+    const token = header.split(' ')[1];
+    req.user = jwt.verify(token, JWT_SECRET);
+    next();
+  } catch(e) {
+    res.status(401).json({ error: 'Token inválido o expirado' });
+  }
+}
+
+// ── Serializa ObjectId y Date ────────────────────────
 function serializeDoc(doc) {
   if (!doc) return doc;
   const out = { ...doc };
-  if (out._id instanceof ObjectId) {
-    out._id = { $oid: out._id.toHexString() };
-  }
-  // Re-serializar fechas como { $date: { $numberLong } } para que el frontend las lea igual
+  if (out._id instanceof ObjectId) out._id = { $oid: out._id.toHexString() };
   for (const [k, v] of Object.entries(out)) {
-    if (v instanceof Date) {
-      out[k] = { $date: { $numberLong: v.getTime().toString() } };
-    }
+    if (v instanceof Date) out[k] = { $date: { $numberLong: v.getTime().toString() } };
   }
   return out;
 }
 
-// ── Convierte filtros con formato Atlas Data API a MongoDB nativo ──
-// Ej: { 'fecha.$date.$numberLong': { $gte: '1000' } }
-// → busca por el campo 'fecha' como Date
 function parseFilter(filter) {
   if (!filter || typeof filter !== 'object') return filter || {};
   const out = {};
-
   for (const [k, v] of Object.entries(filter)) {
-
-    // ✅ _id con $oid
-    if (k === '_id' && v && v.$oid) {
-      out._id = new ObjectId(v.$oid);
-      continue;
-    }
-
-    // ✅ Rango de fechas enviado como ISO string o Date
+    if (k === '_id' && v && v.$oid) { out._id = new ObjectId(v.$oid); continue; }
     if (k === 'fecha' && typeof v === 'object' && v !== null) {
       const dateCond = {};
       for (const [op, val] of Object.entries(v)) {
-        if (typeof val === 'string' || typeof val === 'number') {
-          dateCond[op] = new Date(val);
-        } else if (val instanceof Date) {
-          dateCond[op] = val;
-        }
+        if (typeof val === 'string' || typeof val === 'number') dateCond[op] = new Date(val);
+        else if (val instanceof Date) dateCond[op] = val;
       }
-      out.fecha = dateCond;
-      continue;
+      out.fecha = dateCond; continue;
     }
-
-    // ✅ Objetos normales
-    if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
-      out[k] = parseFilter(v);
-    } else {
-      out[k] = v;
-    }
+    if (typeof v === 'object' && v !== null && !Array.isArray(v)) out[k] = parseFilter(v);
+    else out[k] = v;
   }
-
   return out;
 }
 
 function parseUpdate(update) {
   const out = {};
-  for (const [op, fields] of Object.entries(update)) {
-    out[op] = parseFilter(fields);
-  }
+  for (const [op, fields] of Object.entries(update)) out[op] = parseFilter(fields);
   return out;
 }
 
-// ── Convierte { $date: { $numberLong: '...' } } → Date real ──
 function convertDates(obj) {
   if (obj === null || obj === undefined) return obj;
   if (Array.isArray(obj)) return obj.map(convertDates);
   if (typeof obj === 'object') {
-    if (obj.$date && obj.$date.$numberLong !== undefined) {
-      return new Date(parseInt(obj.$date.$numberLong));
-    }
+    if (obj.$date && obj.$date.$numberLong !== undefined) return new Date(parseInt(obj.$date.$numberLong));
     const out = {};
-    for (const [k, v] of Object.entries(obj)) {
-      out[k] = convertDates(v);
-    }
+    for (const [k, v] of Object.entries(obj)) out[k] = convertDates(v);
     return out;
   }
   return obj;
 }
+
+// ══════════════════════════════════════════════════════
+//  AUTH ROUTES
+// ══════════════════════════════════════════════════════
+
+// Verificar si ya hay un admin registrado
+app.get('/auth/status', async (req, res) => {
+  try {
+    const database = await connectDB();
+    const count = await database.collection('usuarios').countDocuments({ role: 'admin' });
+    res.json({ hasAdmin: count > 0 });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Registro del primer admin (solo si no existe ninguno)
+app.post('/auth/register', async (req, res) => {
+  try {
+    const database = await connectDB();
+    const existing = await database.collection('usuarios').countDocuments({ role: 'admin' });
+    if (existing > 0) return res.status(403).json({ error: 'Ya existe un administrador registrado' });
+
+    const { usuario, password } = req.body;
+    if (!usuario || !password) return res.status(400).json({ error: 'Usuario y contraseña requeridos' });
+    if (password.length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+
+    const hash = await bcrypt.hash(password, 12);
+    await database.collection('usuarios').insertOne({
+      usuario: usuario.trim().toLowerCase(),
+      password: hash,
+      role: 'admin',
+      createdAt: new Date()
+    });
+    res.json({ ok: true, message: 'Administrador creado exitosamente' });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Login
+app.post('/auth/login', async (req, res) => {
+  try {
+    const database = await connectDB();
+    const { usuario, password } = req.body;
+    if (!usuario || !password) return res.status(400).json({ error: 'Usuario y contraseña requeridos' });
+
+    const user = await database.collection('usuarios').findOne({ usuario: usuario.trim().toLowerCase() });
+    if (!user) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+
+    const token = jwt.sign({ id: user._id.toHexString(), usuario: user.usuario, role: user.role }, JWT_SECRET, { expiresIn: '8h' });
+    res.json({ ok: true, token, usuario: user.usuario, role: user.role });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Verificar token
+app.get('/auth/verify', authRequired, (req, res) => {
+  res.json({ ok: true, user: req.user });
+});
 
 // ── Health ───────────────────────────────────────────
 app.get('/health', async (req, res) => {
@@ -118,89 +167,72 @@ app.get('/health', async (req, res) => {
   }
 });
 
-// ── find ─────────────────────────────────────────────
-app.post('/api/:collection/find', async (req, res) => {
+// ══════════════════════════════════════════════════════
+//  API ROUTES (protegidas con JWT)
+// ══════════════════════════════════════════════════════
+
+app.post('/api/:collection/find', authRequired, async (req, res) => {
   try {
     const database = await connectDB();
     const col = database.collection(req.params.collection);
     const { filter = {}, sort = {}, limit = 200, projection } = req.body;
-
     let cursor = col.find(parseFilter(filter));
     if (Object.keys(sort).length) cursor = cursor.sort(sort);
-    if (limit)                    cursor = cursor.limit(limit);
-    if (projection)               cursor = cursor.project(projection);
-
+    if (limit) cursor = cursor.limit(limit);
+    if (projection) cursor = cursor.project(projection);
     const docs = await cursor.toArray();
     res.json({ documents: docs.map(serializeDoc) });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── findOne ──────────────────────────────────────────
-app.post('/api/:collection/findOne', async (req, res) => {
+app.post('/api/:collection/findOne', authRequired, async (req, res) => {
   try {
     const database = await connectDB();
     const col = database.collection(req.params.collection);
     const { filter = {}, projection } = req.body;
     const doc = await col.findOne(parseFilter(filter), { projection });
     res.json({ document: serializeDoc(doc) });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── insertOne ────────────────────────────────────────
-app.post('/api/:collection/insertOne', async (req, res) => {
+app.post('/api/:collection/insertOne', authRequired, async (req, res) => {
   try {
     const database = await connectDB();
     const col = database.collection(req.params.collection);
     const { document: doc } = req.body;
-    const cleanDoc = convertDates(doc);
-    const result = await col.insertOne(cleanDoc);
+    const result = await col.insertOne(convertDates(doc));
     res.json({ insertedId: { $oid: result.insertedId.toHexString() } });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── updateOne ────────────────────────────────────────
-app.post('/api/:collection/updateOne', async (req, res) => {
+app.post('/api/:collection/updateOne', authRequired, async (req, res) => {
   try {
     const database = await connectDB();
     const col = database.collection(req.params.collection);
     const { filter = {}, update = {}, upsert = false } = req.body;
     const result = await col.updateOne(parseFilter(filter), parseUpdate(update), { upsert });
     res.json({ matchedCount: result.matchedCount, modifiedCount: result.modifiedCount });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── deleteOne ────────────────────────────────────────
-app.post('/api/:collection/deleteOne', async (req, res) => {
+app.post('/api/:collection/deleteOne', authRequired, async (req, res) => {
   try {
     const database = await connectDB();
     const col = database.collection(req.params.collection);
     const { filter = {} } = req.body;
     const result = await col.deleteOne(parseFilter(filter));
     res.json({ deletedCount: result.deletedCount });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── aggregate ────────────────────────────────────────
-app.post('/api/:collection/aggregate', async (req, res) => {
+app.post('/api/:collection/aggregate', authRequired, async (req, res) => {
   try {
     const database = await connectDB();
     const col = database.collection(req.params.collection);
     const { pipeline = [] } = req.body;
     const docs = await col.aggregate(pipeline).toArray();
     res.json({ documents: docs.map(serializeDoc) });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.listen(PORT, () => {
