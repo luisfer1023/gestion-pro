@@ -51,36 +51,35 @@ function parseFilter(filter) {
   const out = {};
 
   for (const [k, v] of Object.entries(filter)) {
-    // _id con $oid
+
+    // ✅ _id con $oid
     if (k === '_id' && v && v.$oid) {
       out._id = new ObjectId(v.$oid);
       continue;
     }
 
-    // Claves con notación de punto que incluyen .$date.$numberLong
-    // Ej: 'fecha.$date.$numberLong' → comparar contra campo 'fecha' como Date
-    if (k.includes('.$date.$numberLong')) {
-      const realKey = k.replace('.$date.$numberLong', '');
-      // v puede ser { $gte: '123', $lte: '456' } (strings de timestamp)
-      if (typeof v === 'object' && v !== null) {
-        const dateCondition = {};
-        for (const [op, ts] of Object.entries(v)) {
-          dateCondition[op] = new Date(parseInt(ts));
+    // ✅ Rango de fechas enviado como ISO string o Date
+    if (k === 'fecha' && typeof v === 'object' && v !== null) {
+      const dateCond = {};
+      for (const [op, val] of Object.entries(v)) {
+        if (typeof val === 'string' || typeof val === 'number') {
+          dateCond[op] = new Date(val);
+        } else if (val instanceof Date) {
+          dateCond[op] = val;
         }
-        out[realKey] = dateCondition;
-      } else {
-        out[realKey] = new Date(parseInt(v));
       }
+      out.fecha = dateCond;
       continue;
     }
 
-    // Objetos anidados normales
+    // ✅ Objetos normales
     if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
       out[k] = parseFilter(v);
     } else {
       out[k] = v;
     }
   }
+
   return out;
 }
 
