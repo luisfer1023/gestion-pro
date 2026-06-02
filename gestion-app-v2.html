@@ -677,7 +677,7 @@
     <div class="config-grid">
       <div class="form-group" style="grid-column: 1 / -1;">
         <label>URL del Backend (donde está corriendo server.js)</label>
-        <input type="text" id="cfg-backend-url" placeholder="http://localhost:3001">
+        <input type="text" id="cfg-backend-url" placeholder="https://gestion-pro-vfld.onrender.com" value="https://gestion-pro-vfld.onrender.com" readonly style="opacity:0.6;cursor:not-allowed;" title="URL fija del servidor">
         <p style="font-size:11px;color:var(--text3);margin-top:4px;">Si desplegas en Render u otro servicio, pon aquí la URL pública.</p>
       </div>
       <div class="form-group" style="grid-column: 1 / -1; display:none;">
@@ -1219,43 +1219,57 @@
 // ═══════════════════════════════════════════════════
 let AUTH_TOKEN = null;
 
+// URL fija del backend — funciona en cualquier dispositivo sin configurar
+const BACKEND_DEFAULT = 'https://gestion-pro-vfld.onrender.com';
+
 function getBackendUrl() {
   try {
     const cfg = JSON.parse(localStorage.getItem('gestionpro_cfg') || '{}');
-    return (cfg.backendUrl || 'http://localhost:3001').replace(/\/$/, '');
-  } catch { return 'http://localhost:3001'; }
+    return (cfg.backendUrl || BACKEND_DEFAULT).replace(/\/$/, '');
+  } catch { return BACKEND_DEFAULT; }
 }
 
 // ── Keep-alive: ping cada 10 min para evitar que Render duerma el servidor ──
 function startKeepAlive() {
   const url = getBackendUrl();
-  setInterval(async () => {
-    try { await fetch(`${url}/health`); } catch(e) {}
-  }, 10 * 60 * 1000); // cada 10 minutos
+  const ping = () => fetch(`${url}/health`).catch(() => {});
+  ping(); // ping inmediato al entrar
+  setInterval(ping, 8 * 60 * 1000); // cada 8 minutos
 }
 
 // ── Fetch con reintentos y mensaje de "despertando servidor" ──
-async function fetchWithWakeUp(url, options = {}, maxRetries = 3) {
+async function fetchWithWakeUp(url, options = {}, maxRetries = 5) {
   const loginErrorEl = document.getElementById('login-error');
+  const loginBtn     = document.getElementById('btn-login');
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
+      // Timeout de 25s por intento — Render puede tardar hasta 60s en cold start
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000); // 15s timeout por intento
+      const tid = setTimeout(() => controller.abort(), 25000);
       const r = await fetch(url, { ...options, signal: controller.signal });
-      clearTimeout(timeout);
+      clearTimeout(tid);
+      // Limpiar estilos de advertencia si tuvo exito
+      if (loginErrorEl) { loginErrorEl.classList.remove('show'); loginErrorEl.style.cssText = ''; }
       return r;
     } catch(e) {
       if (attempt < maxRetries) {
+        const waitSec = 10 + attempt * 5; // 15s, 20s, 25s, 30s
         if (loginErrorEl) {
-          loginErrorEl.textContent = `⏳ Despertando el servidor... (intento ${attempt}/${maxRetries})`;
+          loginErrorEl.innerHTML = '<strong>Despertando el servidor de Render...</strong><br>' +
+            '<span style="font-size:11px">Intento ' + attempt + ' de ' + maxRetries +
+            ' &mdash; esperando ' + waitSec + 's. Esto solo pasa la primera vez del dia.</span>';
           loginErrorEl.classList.add('show');
-          loginErrorEl.style.background = 'rgba(255,179,71,0.1)';
-          loginErrorEl.style.borderColor = 'rgba(255,179,71,0.3)';
-          loginErrorEl.style.color = 'var(--amber)';
+          loginErrorEl.style.background = 'rgba(255,179,71,0.08)';
+          loginErrorEl.style.borderColor = 'rgba(255,179,71,0.35)';
+          loginErrorEl.style.color = '#c8923a';
         }
-        await new Promise(res => setTimeout(res, 4000 * attempt)); // espera creciente
+        if (loginBtn) loginBtn.innerHTML = '<span class="spinner"></span> Despertando (' + attempt + '/' + maxRetries + ')...';
+        await new Promise(res => setTimeout(res, waitSec * 1000));
       } else {
-        throw new Error('No se pudo conectar con el servidor. Espera 30 segundos y vuelve a intentarlo (Render puede tardar en despertar).');
+        if (loginErrorEl) { loginErrorEl.style.cssText = ''; }
+        if (loginBtn) { loginBtn.innerHTML = '&#128274; Ingresar'; loginBtn.disabled = false; }
+        throw new Error('El servidor no respondio. Haz clic en Ingresar de nuevo en unos segundos.');
       }
     }
   }
@@ -1470,60 +1484,70 @@ let chartVentas = null, chartIngresos = null;
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
-function loadConfig() {
+async function loadConfig() {
+  // 1. Siempre partimos con la URL fija del backend
+  CFG = { backendUrl: BACKEND_DEFAULT };
+
+  // 2. Bajar config desde MongoDB (funciona en CUALQUIER dispositivo automaticamente)
   try {
-    const saved = localStorage.getItem('gestionpro_cfg');
-    CFG = saved ? JSON.parse(saved) : {};
-  } catch (e) {
-    CFG = {};
-  }
-
-  // ✅ BACKEND POR DEFECTO — URL fija para que funcione en cualquier dispositivo sin configurar
-  if (!CFG.backendUrl) {
-    CFG.backendUrl = 'https://gestion-pro-vfld.onrender.com';
-  }
-
-  // Rellenar inputs si existen (PC / Configuración)
-  const backendInput = document.getElementById('cfg-backend-url');
-  if (backendInput) backendInput.value = CFG.backendUrl;
-
-  const emailService = document.getElementById('cfg-email-service');
-  if (emailService) emailService.value = CFG.emailService || '';
-
-  const emailTemplate = document.getElementById('cfg-email-template');
-  if (emailTemplate) emailTemplate.value = CFG.emailTemplate || '';
-
-  const emailPubKey = document.getElementById('cfg-email-pubkey');
-  if (emailPubKey) emailPubKey.value = CFG.emailPubKey || '';
-
-  const empresa = document.getElementById('cfg-empresa');
-  if (empresa) empresa.value = CFG.empresa || '';
-
-  // Estado visual
-  if (CFG.backendUrl) {
-    const dot = document.getElementById('dbDot');
-    const status = document.getElementById('dbStatus');
-    if (dot && status) {
-      dot.className = 'db-dot ok';
-      status.textContent = 'Configurado';
+    const r = await fetch(BACKEND_DEFAULT + '/config');
+    if (r.ok) {
+      const remote = await r.json();
+      if (remote && Object.keys(remote).length > 0) {
+        CFG = Object.assign({}, CFG, remote);
+      }
     }
-    if (CFG.emailPubKey) emailjs.init(CFG.emailPubKey);
+  } catch(e) {
+    // Si el servidor esta dormido, intentar localStorage como fallback
+    try {
+      const saved = localStorage.getItem('gestionpro_cfg');
+      if (saved) CFG = Object.assign({}, CFG, JSON.parse(saved));
+    } catch(e2) {}
   }
+
+  // 3. Siempre forzar la URL correcta
+  CFG.backendUrl = BACKEND_DEFAULT;
+
+  // 4. Guardar en localStorage para acceso offline
+  try { localStorage.setItem('gestionpro_cfg', JSON.stringify(CFG)); } catch(e) {}
+
+  // 5. Rellenar inputs en pantalla de configuracion
+  const fill = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+  fill('cfg-email-service',  CFG.emailService);
+  fill('cfg-email-template', CFG.emailTemplate);
+  fill('cfg-email-pubkey',   CFG.emailPubKey);
+  fill('cfg-empresa',        CFG.empresa);
+
+  // 6. Inicializar EmailJS si hay clave
+  if (CFG.emailPubKey) {
+    try { emailjs.init(CFG.emailPubKey); } catch(e) {}
+  }
+
+  // 7. Estado visual
+  document.getElementById('dbDot').className = 'db-dot ok';
+  document.getElementById('dbStatus').textContent = 'Conectado';
 }
 
-function saveConfig() {
-  const backendUrl = (document.getElementById('cfg-backend-url').value.trim() || 'http://localhost:3001').replace(/\/$/, '');
+async function saveConfig() {
   CFG = {
-    backendUrl,
-    emailService: document.getElementById('cfg-email-service').value.trim(),
+    backendUrl: BACKEND_DEFAULT,
+    emailService:  document.getElementById('cfg-email-service').value.trim(),
     emailTemplate: document.getElementById('cfg-email-template').value.trim(),
-    emailPubKey: document.getElementById('cfg-email-pubkey').value.trim(),
-    empresa: document.getElementById('cfg-empresa').value.trim() || 'Mi Empresa'
+    emailPubKey:   document.getElementById('cfg-email-pubkey').value.trim(),
+    empresa:       document.getElementById('cfg-empresa').value.trim() || 'Mi Empresa'
   };
-  if (!CFG.backendUrl) { toast('Ingresa la URL del backend', 'error'); return; }
+  // Guardar en localStorage (este dispositivo)
   localStorage.setItem('gestionpro_cfg', JSON.stringify(CFG));
+  // Guardar en MongoDB (todos los dispositivos)
+  try {
+    await fetch(`${BACKEND_DEFAULT}/config`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + AUTH_TOKEN },
+      body: JSON.stringify(CFG)
+    });
+  } catch(e) {}
   if (CFG.emailPubKey) emailjs.init(CFG.emailPubKey);
-  toast('✅ Configuración guardada correctamente', 'success');
+  toast('Configuracion guardada y sincronizada en todos los dispositivos', 'success');
   document.getElementById('dbDot').className = 'db-dot ok';
   document.getElementById('dbStatus').textContent = 'Configurado';
 }
@@ -2353,8 +2377,7 @@ async function deleteUsuario(id, nombre) {
 //  INIT
 // ═══════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', () => {
-  loadConfig();
-  checkAuthStatus();
+  loadConfig().then(() => checkAuthStatus());
 
   // Fecha del filtro de ventas = mes actual
   const now = new Date();
