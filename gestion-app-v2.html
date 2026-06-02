@@ -1409,20 +1409,42 @@ const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto'
 function loadConfig() {
   try {
     const saved = localStorage.getItem('gestionpro_cfg');
-    if (saved) {
-      CFG = JSON.parse(saved);
-      document.getElementById('cfg-backend-url').value = CFG.backendUrl || 'http://localhost:3001';
-      document.getElementById('cfg-email-service').value = CFG.emailService || '';
-      document.getElementById('cfg-email-template').value = CFG.emailTemplate || '';
-      document.getElementById('cfg-email-pubkey').value = CFG.emailPubKey || '';
-      document.getElementById('cfg-empresa').value = CFG.empresa || '';
-      if (CFG.backendUrl) {
-        document.getElementById('dbDot').className = 'db-dot ok';
-        document.getElementById('dbStatus').textContent = 'Configurado';
-        if (CFG.emailPubKey) emailjs.init(CFG.emailPubKey);
-      }
+    CFG = saved ? JSON.parse(saved) : {};
+  } catch (e) {
+    CFG = {};
+  }
+
+  // ✅ BACKEND POR DEFECTO (CLAVE PARA MÓVIL)
+  if (!CFG.backendUrl) {
+    CFG.backendUrl = 'https://TU_BACKEND.onrender.com'; // 👈 PON AQUÍ TU URL REAL
+  }
+
+  // Rellenar inputs si existen (PC / Configuración)
+  const backendInput = document.getElementById('cfg-backend-url');
+  if (backendInput) backendInput.value = CFG.backendUrl;
+
+  const emailService = document.getElementById('cfg-email-service');
+  if (emailService) emailService.value = CFG.emailService || '';
+
+  const emailTemplate = document.getElementById('cfg-email-template');
+  if (emailTemplate) emailTemplate.value = CFG.emailTemplate || '';
+
+  const emailPubKey = document.getElementById('cfg-email-pubkey');
+  if (emailPubKey) emailPubKey.value = CFG.emailPubKey || '';
+
+  const empresa = document.getElementById('cfg-empresa');
+  if (empresa) empresa.value = CFG.empresa || '';
+
+  // Estado visual
+  if (CFG.backendUrl) {
+    const dot = document.getElementById('dbDot');
+    const status = document.getElementById('dbStatus');
+    if (dot && status) {
+      dot.className = 'db-dot ok';
+      status.textContent = 'Configurado';
     }
-  } catch(e) {}
+    if (CFG.emailPubKey) emailjs.init(CFG.emailPubKey);
+  }
 }
 
 function saveConfig() {
