@@ -1463,7 +1463,6 @@ async function loadVentas() {
         $lte: new Date(end)
   }
 };
-
     }
     const data = await mongoRequest('find', 'facturas', {
       filter,
@@ -1611,9 +1610,14 @@ async function loadStats() {
     const start = new Date(year, 0, 1).getTime();
     const end = new Date(year, 11, 31, 23, 59, 59).getTime();
     const data = await mongoRequest('find', 'facturas', {
-      filter: { 'fecha.$date.$numberLong': { $gte: start.toString(), $lte: end.toString() } },
-      limit: 1000
-    });
+  filter: {
+    fecha: {
+      $gte: new Date(start),
+      $lte: new Date(end)
+    }
+  },
+  limit: 1000
+});
     const facturas = data.documents || [];
 
     const byMonth = Array.from({length:12}, () => ({ count:0, bruto:0, descuento:0, neto:0 }));
@@ -1718,9 +1722,14 @@ async function exportExcel() {
     const start = new Date(year, 0, 1).getTime();
     const end = new Date(year, 11, 31, 23, 59, 59).getTime();
     const data = await mongoRequest('find', 'facturas', {
-      filter: { 'fecha.$date.$numberLong': { $gte: start.toString(), $lte: end.toString() } },
-      limit: 2000
-    });
+  filter: {
+    fecha: {
+      $gte: new Date(start),
+      $lte: new Date(end)
+    }
+  },
+  limit: 2000
+});
     const facturas = data.documents || [];
 
     const wb = XLSX.utils.book_new();
