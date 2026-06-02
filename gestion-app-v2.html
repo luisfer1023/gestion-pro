@@ -528,7 +528,10 @@
   .btn-logout { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 14px; padding: 4px; border-radius: 4px; transition: color 0.15s; }
   .btn-logout:hover { color: var(--red); }
   .auth-only { display: none !important; }
-  body.is-admin .auth-only { display: inline-flex !important; }
+  body.is-logged .auth-only { display: inline-flex !important; }
+  .admin-only { display: none !important; }
+  body.is-admin .admin-only { display: inline-flex !important; }
+  body.is-admin .admin-only.block-item { display: block !important; }
 </style>
 </head>
 <body>
@@ -595,19 +598,23 @@
     <p>Sistema de Gestión Empresarial</p>
   </div>
   <nav class="sidebar-nav">
-    <div class="nav-label">Principal</div>
-    <button class="nav-btn active" onclick="showPage('config')">
+    <div class="nav-label admin-only" id="nav-label-principal">Principal</div>
+    <button class="nav-btn admin-only" onclick="showPage('config')" id="nav-config">
       <span class="icon">⚙️</span> Configuración
     </button>
     <div class="nav-label">Módulos</div>
-    <button class="nav-btn" onclick="showPage('inventario')">
+    <button class="nav-btn active" onclick="showPage('inventario')" id="nav-inventario">
       <span class="icon">📦</span> Inventario
     </button>
-    <button class="nav-btn" onclick="showPage('ventas')">
+    <button class="nav-btn" onclick="showPage('ventas')" id="nav-ventas">
       <span class="icon">🧾</span> Ventas / Facturación
     </button>
-    <button class="nav-btn" onclick="showPage('estadisticas')">
+    <button class="nav-btn" onclick="showPage('estadisticas')" id="nav-estadisticas">
       <span class="icon">📊</span> Estadísticas
+    </button>
+    <div class="nav-label admin-only">Administración</div>
+    <button class="nav-btn admin-only" onclick="showPage('usuarios')" id="nav-usuarios">
+      <span class="icon">👥</span> Usuarios
     </button>
   </nav>
   <div class="sidebar-footer">
@@ -618,10 +625,10 @@
     <div>MongoDB Atlas</div>
   </div>
   <div class="user-badge" id="user-badge" style="display:none;">
-    <div class="user-avatar">👤</div>
+    <div class="user-avatar" id="user-avatar">👤</div>
     <div class="user-info">
       <strong id="user-name">Admin</strong>
-      <span>Administrador</span>
+      <span id="user-role-label">Administrador</span>
     </div>
     <button class="btn-logout" onclick="doLogout()" title="Cerrar sesión">⏻</button>
   </div>
@@ -727,7 +734,7 @@
       <div class="page-title">📦 Inventario</div>
       <div class="page-subtitle">Gestión de productos y stock</div>
     </div>
-    <button class="btn btn-primary auth-only" onclick="openModal('modal-producto')">+ Agregar Producto</button>
+    <button class="btn btn-primary admin-only" onclick="openModal('modal-producto')">+ Agregar Producto</button>
   </div>
 
   <div class="stats-grid">
@@ -920,7 +927,75 @@
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════
+     PÁGINA: USUARIOS (solo admin)
+═══════════════════════════════════════════════ -->
+<div id="page-usuarios" class="page">
+  <div class="page-header">
+    <div>
+      <div class="page-title">👥 Usuarios</div>
+      <div class="page-subtitle">Gestión de usuarios del sistema</div>
+    </div>
+    <button class="btn btn-primary" onclick="openModal('modal-usuario')">+ Nuevo Usuario</button>
+  </div>
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Usuarios Registrados</span>
+      <button class="btn btn-secondary btn-sm" onclick="loadUsuarios()">🔄 Actualizar</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Usuario</th>
+            <th>Rol</th>
+            <th>Fecha Creación</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="usuarios-tbody">
+          <tr><td colspan="4"><div class="empty-state"><span class="icon">👥</span><p>Cargando...</p></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 </main><!-- /main -->
+
+<!-- ═══════════════════════════════════════════════
+     MODAL: NUEVO USUARIO
+═══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-usuario">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header">
+      <span class="modal-title">Nuevo Usuario</span>
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-usuario')">✕</button>
+    </div>
+    <p style="color:var(--text2);font-size:13px;margin-bottom:16px;">
+      Este usuario podrá crear facturas y ver el inventario, pero no podrá editar ni eliminar productos ni acceder a la configuración.
+    </p>
+    <div class="login-error" id="usuario-error"></div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Nombre de usuario</label>
+        <input type="text" id="nu-usuario" placeholder="Ej: empleado1">
+      </div>
+      <div class="form-group">
+        <label>Contraseña (mínimo 6 caracteres)</label>
+        <input type="password" id="nu-password" placeholder="Contraseña">
+      </div>
+      <div class="form-group">
+        <label>Confirmar contraseña</label>
+        <input type="password" id="nu-password2" placeholder="Repetir contraseña">
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;">
+      <button class="btn btn-primary" onclick="saveUsuario()">💾 Crear Usuario</button>
+      <button class="btn btn-secondary" onclick="closeModal('modal-usuario')">Cancelar</button>
+    </div>
+  </div>
+</div>
 
 <!-- ═══════════════════════════════════════════════
      MODAL: AGREGAR / EDITAR PRODUCTO
@@ -1160,7 +1235,7 @@ async function checkAuthStatus() {
       if (r.ok) {
         const data = await r.json();
         AUTH_TOKEN = saved;
-        onLoginSuccess(data.user.usuario);
+        onLoginSuccess(data.user.usuario, data.user.role);
         return;
       }
     } catch(e) {}
@@ -1217,7 +1292,7 @@ async function doLogin() {
     if (!r.ok) throw new Error(data.error || 'Error al iniciar sesión');
     AUTH_TOKEN = data.token;
     localStorage.setItem('gestionpro_token', AUTH_TOKEN);
-    onLoginSuccess(data.usuario);
+    onLoginSuccess(data.usuario, data.role);
   } catch(e) {
     errorEl.textContent = e.message;
     errorEl.classList.add('show');
@@ -1271,18 +1346,45 @@ async function doRegister() {
   }
 }
 
-function onLoginSuccess(usuario) {
+function onLoginSuccess(usuario, role) {
   document.getElementById('login-screen').classList.add('hidden');
-  document.body.classList.add('is-admin');
+  document.body.classList.add('is-logged');
   document.getElementById('user-badge').style.display = 'flex';
   document.getElementById('user-name').textContent = usuario;
+
+  if (role === 'admin') {
+    document.body.classList.add('is-admin');
+    document.getElementById('user-role-label').textContent = 'Administrador';
+    document.getElementById('user-avatar').textContent = '👑';
+    // Admin ve config por defecto
+    showPageById('config');
+  } else {
+    document.body.classList.remove('is-admin');
+    document.getElementById('user-role-label').textContent = 'Usuario';
+    document.getElementById('user-avatar').textContent = '👤';
+    // Usuario normal va directo a inventario
+    showPageById('inventario');
+  }
+}
+
+function showPageById(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  const pageEl = document.getElementById('page-' + page);
+  const navEl = document.getElementById('nav-' + page);
+  if (pageEl) pageEl.classList.add('active');
+  if (navEl) navEl.classList.add('active');
+  if (page === 'inventario') loadInventario();
+  if (page === 'ventas') loadVentas();
+  if (page === 'estadisticas') loadStats();
+  if (page === 'usuarios') loadUsuarios();
 }
 
 function doLogout() {
   if (!confirm('¿Cerrar sesión?')) return;
   AUTH_TOKEN = null;
   localStorage.removeItem('gestionpro_token');
-  document.body.classList.remove('is-admin');
+  document.body.classList.remove('is-admin', 'is-logged');
   document.getElementById('user-badge').style.display = 'none';
   document.getElementById('login-usuario').value = '';
   document.getElementById('login-password').value = '';
@@ -1429,9 +1531,9 @@ function renderInventario(prods) {
       <td>${badge}</td>
       <td>
         <div style="display:flex;gap:6px;">
-          <button class="btn btn-secondary btn-sm auth-only" onclick="editProducto('${p._id.$oid}')">✏️</button>
-          <button class="btn btn-secondary btn-sm auth-only" onclick="openStockModal('${p._id.$oid}','${p.nombre.replace(/'/g,"\\'")}',${stock})">📦</button>
-          <button class="btn btn-danger btn-sm auth-only" onclick="deleteProducto('${p._id.$oid}')">🗑️</button>
+          <button class="btn btn-secondary btn-sm admin-only" onclick="editProducto('${p._id.$oid}')">✏️</button>
+          <button class="btn btn-secondary btn-sm admin-only" onclick="openStockModal('${p._id.$oid}','${p.nombre.replace(/'/g,"\\'")}',${stock})">📦</button>
+          <button class="btn btn-danger btn-sm admin-only" onclick="deleteProducto('${p._id.$oid}')">🗑️</button>
         </div>
       </td>
     </tr>`;
@@ -2071,6 +2173,94 @@ function toast(msg, type) {
 function fmtNum(n) {
   if (isNaN(n) || n === null) return '0';
   return new Intl.NumberFormat('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(n));
+}
+
+
+// ═══════════════════════════════════════════════════
+//  GESTIÓN DE USUARIOS (solo admin)
+// ═══════════════════════════════════════════════════
+async function loadUsuarios() {
+  try {
+    const r = await fetch(`${CFG.backendUrl}/auth/users`, {
+      headers: { 'Authorization': 'Bearer ' + AUTH_TOKEN }
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error);
+    renderUsuarios(data.users || []);
+  } catch(e) {
+    document.getElementById('usuarios-tbody').innerHTML =
+      `<tr><td colspan="4"><div class="empty-state"><span class="icon">⚠️</span><p>Error: ${e.message}</p></div></td></tr>`;
+  }
+}
+
+function renderUsuarios(users) {
+  const tbody = document.getElementById('usuarios-tbody');
+  if (!users.length) {
+    tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state"><span class="icon">👥</span><p>No hay usuarios adicionales</p></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = users.map(u => {
+    const fecha = u.createdAt ? new Date(u.createdAt).toLocaleDateString('es-CO') : '—';
+    const rolBadge = u.role === 'admin'
+      ? '<span class="badge badge-blue">👑 Admin</span>'
+      : '<span class="badge badge-green">👤 Usuario</span>';
+    const canDelete = u.role !== 'admin';
+    return `<tr>
+      <td><strong>${u.usuario}</strong></td>
+      <td>${rolBadge}</td>
+      <td style="font-size:12px;color:var(--text3)">${fecha}</td>
+      <td>
+        ${canDelete ? `<button class="btn btn-danger btn-sm" onclick="deleteUsuario('${u._id}','${u.usuario}')">🗑️ Eliminar</button>` : '<span style="color:var(--text3);font-size:12px;">—</span>'}
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function saveUsuario() {
+  const usuario = document.getElementById('nu-usuario').value.trim();
+  const password = document.getElementById('nu-password').value;
+  const password2 = document.getElementById('nu-password2').value;
+  const errorEl = document.getElementById('usuario-error');
+  errorEl.classList.remove('show');
+
+  if (!usuario || !password) { errorEl.textContent = 'Completa todos los campos'; errorEl.classList.add('show'); return; }
+  if (password !== password2) { errorEl.textContent = 'Las contraseñas no coinciden'; errorEl.classList.add('show'); return; }
+  if (password.length < 6) { errorEl.textContent = 'Mínimo 6 caracteres'; errorEl.classList.add('show'); return; }
+
+  try {
+    const r = await fetch(`${CFG.backendUrl}/auth/users`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + AUTH_TOKEN },
+      body: JSON.stringify({ usuario, password })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error);
+    toast('✅ Usuario creado: ' + usuario, 'success');
+    closeModal('modal-usuario');
+    document.getElementById('nu-usuario').value = '';
+    document.getElementById('nu-password').value = '';
+    document.getElementById('nu-password2').value = '';
+    loadUsuarios();
+  } catch(e) {
+    errorEl.textContent = e.message;
+    errorEl.classList.add('show');
+  }
+}
+
+async function deleteUsuario(id, nombre) {
+  if (!confirm(`¿Eliminar al usuario "${nombre}"? Esta acción no se puede deshacer.`)) return;
+  try {
+    const r = await fetch(`${CFG.backendUrl}/auth/users/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + AUTH_TOKEN }
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error);
+    toast('✅ Usuario eliminado', 'success');
+    loadUsuarios();
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  }
 }
 
 // ═══════════════════════════════════════════════════
