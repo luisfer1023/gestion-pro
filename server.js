@@ -177,13 +177,36 @@ app.get('/health', async (req, res) => {
 
 
 
-// ── Configuración pública de la app ─────────────────
+// ── Configuracion de la app (publica para leer, protegida para escribir) ──
 app.get('/config', async (req, res) => {
   try {
     const database = await connectDB();
     const cfg = await database.collection('configuracion').findOne({});
     if (!cfg) return res.json({});
-    res.json(cfg);
+    const { _id, ...rest } = cfg;
+    res.json(rest);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/config', authRequired, async (req, res) => {
+  try {
+    const database = await connectDB();
+    const body = req.body || {};
+    const safe = {
+      empresa:       body.empresa       || '',
+      emailService:  body.emailService  || '',
+      emailTemplate: body.emailTemplate || '',
+      emailPubKey:   body.emailPubKey   || '',
+      updatedAt:     new Date()
+    };
+    await database.collection('configuracion').updateOne(
+      {},
+      { $set: safe },
+      { upsert: true }
+    );
+    res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
