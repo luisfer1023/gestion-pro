@@ -238,3 +238,57 @@ app.post('/api/:collection/aggregate', authRequired, async (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 GestiónPro corriendo en http://localhost:${PORT}`);
 });
+
+// ══════════════════════════════════════════════════════
+//  GESTIÓN DE USUARIOS (solo admin)
+// ══════════════════════════════════════════════════════
+
+function adminRequired(req, res, next) {
+  authRequired(req, res, () => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Solo el administrador puede hacer esto' });
+    next();
+  });
+}
+
+// Listar usuarios
+app.get('/auth/users', adminRequired, async (req, res) => {
+  try {
+    const database = await connectDB();
+    const users = await database.collection('usuarios')
+      .find({}, { projection: { password: 0 } })
+      .toArray();
+    res.json({ users: users.map(u => ({ ...u, _id: u._id.toHexString() })) });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Crear usuario (admin crea usuarios con role 'usuario')
+app.post('/auth/users', adminRequired, async (req, res) => {
+  try {
+    const database = await connectDB();
+    const { usuario, password } = req.body;
+    if (!usuario || !password) return res.status(400).json({ error: 'Usuario y contraseña requeridos' });
+    if (password.length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+
+    const exists = await database.collection('usuarios').findOne({ usuario: usuario.trim().toLowerCase() });
+    if (exists) return res.status(409).json({ error: 'Ya existe un usuario con ese nombre' });
+
+    const hash = await bcrypt.hash(password, 12);
+    const result = await database.collection('usuarios').insertOne({
+      usuario: usuario.trim().toLowerCase(),
+      password: hash,
+      role: 'usuario',
+      createdAt: new Date()
+    });
+    res.json({ ok: true, id: result.insertedId.toHexString() });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Eliminar usuario (admin no puede eliminarse a sí mismo)
+app.delete('/auth/users/:id', adminRequired, async (req, res) => {
+  try {
+    const database = await connectDB();
+    if (req.params.id === req.user.id) return res.status(400).json({ error: 'No puedes eliminarte a ti mismo' });
+    const result = await database.collection('usuarios').deleteOne({ _id: new ObjectId(req.params.id) });
+    res.json({ deletedCount: result.deletedCount });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
