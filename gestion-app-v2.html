@@ -545,6 +545,9 @@
       <h1>Gestión<span>Pro</span></h1>
       <p>Sistema de Gestión Empresarial</p>
     </div>
+    <div style="background:rgba(255,179,71,0.08);border:1px solid rgba(255,179,71,0.25);border-radius:8px;padding:10px 14px;margin-bottom:20px;font-size:11.5px;color:#c8923a;line-height:1.6;text-align:center;">
+      ⏳ Si es tu primer acceso del día, el servidor puede tardar <strong>20–40 segundos</strong> en despertar. El login reintentará automáticamente.
+    </div>
     <div id="form-login">
       <div class="login-title">Iniciar Sesión</div>
       <div class="login-error" id="login-error"></div>
@@ -1223,18 +1226,58 @@ function getBackendUrl() {
   } catch { return 'http://localhost:3001'; }
 }
 
+// ── Keep-alive: ping cada 10 min para evitar que Render duerma el servidor ──
+function startKeepAlive() {
+  const url = getBackendUrl();
+  setInterval(async () => {
+    try { await fetch(`${url}/health`); } catch(e) {}
+  }, 10 * 60 * 1000); // cada 10 minutos
+}
+
+// ── Fetch con reintentos y mensaje de "despertando servidor" ──
+async function fetchWithWakeUp(url, options = {}, maxRetries = 3) {
+  const loginErrorEl = document.getElementById('login-error');
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000); // 15s timeout por intento
+      const r = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timeout);
+      return r;
+    } catch(e) {
+      if (attempt < maxRetries) {
+        if (loginErrorEl) {
+          loginErrorEl.textContent = `⏳ Despertando el servidor... (intento ${attempt}/${maxRetries})`;
+          loginErrorEl.classList.add('show');
+          loginErrorEl.style.background = 'rgba(255,179,71,0.1)';
+          loginErrorEl.style.borderColor = 'rgba(255,179,71,0.3)';
+          loginErrorEl.style.color = 'var(--amber)';
+        }
+        await new Promise(res => setTimeout(res, 4000 * attempt)); // espera creciente
+      } else {
+        throw new Error('No se pudo conectar con el servidor. Espera 30 segundos y vuelve a intentarlo (Render puede tardar en despertar).');
+      }
+    }
+  }
+}
+
 async function checkAuthStatus() {
+  const url = getBackendUrl();
+
+  // Mostrar que está conectando
+  const loginErrorEl = document.getElementById('login-error');
+
   // Verificar si ya tiene token guardado
   const saved = localStorage.getItem('gestionpro_token');
   if (saved) {
     try {
-      const url = getBackendUrl();
-      const r = await fetch(`${url}/auth/verify`, {
+      const r = await fetchWithWakeUp(`${url}/auth/verify`, {
         headers: { 'Authorization': 'Bearer ' + saved }
       });
-      if (r.ok) {
+      if (r && r.ok) {
         const data = await r.json();
         AUTH_TOKEN = saved;
+        startKeepAlive();
         onLoginSuccess(data.user.usuario, data.user.role);
         return;
       }
@@ -1242,15 +1285,32 @@ async function checkAuthStatus() {
     localStorage.removeItem('gestionpro_token');
   }
 
+  // Restaurar estilo del error
+  if (loginErrorEl) {
+    loginErrorEl.classList.remove('show');
+    loginErrorEl.style.background = '';
+    loginErrorEl.style.borderColor = '';
+    loginErrorEl.style.color = '';
+  }
+
   // Ver si ya hay admin creado
   try {
-    const url = getBackendUrl();
-    const r = await fetch(`${url}/auth/status`);
-    const data = await r.json();
-    if (!data.hasAdmin) {
-      document.getElementById('switch-to-register').style.display = 'block';
+    const r = await fetchWithWakeUp(`${url}/auth/status`);
+    if (r && r.ok) {
+      const data = await r.json();
+      if (!data.hasAdmin) {
+        document.getElementById('switch-to-register').style.display = 'block';
+      }
     }
-  } catch(e) {}
+  } catch(e) {
+    if (loginErrorEl) {
+      loginErrorEl.textContent = '⚠️ ' + e.message;
+      loginErrorEl.classList.add('show');
+      loginErrorEl.style.background = '';
+      loginErrorEl.style.borderColor = '';
+      loginErrorEl.style.color = '';
+    }
+  }
 
   document.getElementById('login-screen').classList.remove('hidden');
 }
@@ -1278,12 +1338,15 @@ async function doLogin() {
     errorEl.classList.add('show'); return;
   }
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Verificando...';
+  btn.innerHTML = '<span class="spinner"></span> Conectando...';
   errorEl.classList.remove('show');
+  errorEl.style.background = '';
+  errorEl.style.borderColor = '';
+  errorEl.style.color = '';
 
   try {
     const url = getBackendUrl();
-    const r = await fetch(`${url}/auth/login`, {
+    const r = await fetchWithWakeUp(`${url}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ usuario, password })
@@ -1292,6 +1355,7 @@ async function doLogin() {
     if (!r.ok) throw new Error(data.error || 'Error al iniciar sesión');
     AUTH_TOKEN = data.token;
     localStorage.setItem('gestionpro_token', AUTH_TOKEN);
+    startKeepAlive();
     onLoginSuccess(data.usuario, data.role);
   } catch(e) {
     errorEl.textContent = e.message;
@@ -1414,9 +1478,9 @@ function loadConfig() {
     CFG = {};
   }
 
-  // ✅ BACKEND POR DEFECTO (CLAVE PARA MÓVIL)
+  // ✅ BACKEND POR DEFECTO — URL fija para que funcione en cualquier dispositivo sin configurar
   if (!CFG.backendUrl) {
-    CFG.backendUrl = 'https://TU_BACKEND.onrender.com'; // 👈 PON AQUÍ TU URL REAL
+    CFG.backendUrl = 'https://gestion-pro-vfld.onrender.com';
   }
 
   // Rellenar inputs si existen (PC / Configuración)
