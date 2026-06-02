@@ -1018,6 +1018,7 @@ let CFG = {};
 let invoiceItems = [];
 let currentInvoice = null;
 let allProducts = [];
+let allFacturas = [];
 let chartVentas = null, chartIngresos = null;
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -1463,7 +1464,8 @@ async function loadVentas() {
       sort: { 'fecha.$date.$numberLong': -1 },
       limit: 200
     });
-    const facturas = data.documents || [];
+    const facturas = Array.isArray(data.documents) ? data.documents : [];
+    allFacturas = facturas;
     renderVentas(facturas);
     updateVentasStats(facturas);
   } catch(e) {
