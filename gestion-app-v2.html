@@ -1,0 +1,1795 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GestiónPro — Sistema de Gestión</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #0f1117;
+    --bg2: #171923;
+    --bg3: #1e2130;
+    --bg4: #252840;
+    --border: #2e3248;
+    --border2: #3d4166;
+    --text: #e8eaf6;
+    --text2: #9da3c8;
+    --text3: #6b7299;
+    --accent: #6c63ff;
+    --accent2: #5753d4;
+    --accent-glow: rgba(108,99,255,0.15);
+    --green: #00d68f;
+    --green-bg: rgba(0,214,143,0.1);
+    --red: #ff4d6a;
+    --red-bg: rgba(255,77,106,0.1);
+    --amber: #ffb347;
+    --amber-bg: rgba(255,179,71,0.1);
+    --blue: #4da6ff;
+    --blue-bg: rgba(77,166,255,0.1);
+    --radius: 10px;
+    --radius-lg: 16px;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+  }
+
+  /* ─── LAYOUT ─── */
+  .app { display: flex; min-height: 100vh; }
+
+  .sidebar {
+    width: 230px;
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    z-index: 100;
+  }
+
+  .sidebar-logo {
+    padding: 24px 20px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar-logo h1 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.3px;
+  }
+  .sidebar-logo span { color: var(--accent); }
+  .sidebar-logo p { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+  .sidebar-nav { padding: 16px 12px; flex: 1; }
+  .nav-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text3);
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    padding: 0 8px;
+    margin: 16px 0 6px;
+  }
+  .nav-label:first-child { margin-top: 0; }
+
+  .nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 9px 12px;
+    border-radius: var(--radius);
+    border: none;
+    background: transparent;
+    color: var(--text2);
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13.5px;
+    font-weight: 400;
+    transition: all 0.15s;
+    text-align: left;
+  }
+  .nav-btn:hover { background: var(--bg3); color: var(--text); }
+  .nav-btn.active {
+    background: var(--accent-glow);
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .nav-btn .icon { font-size: 16px; flex-shrink: 0; }
+
+  .sidebar-footer {
+    padding: 14px 20px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text3);
+  }
+  .db-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+  .db-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--text3);
+    transition: background 0.3s;
+  }
+  .db-dot.ok { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .db-dot.error { background: var(--red); }
+
+  .main {
+    margin-left: 230px;
+    flex: 1;
+    padding: 28px 32px;
+    min-height: 100vh;
+  }
+
+  /* ─── PAGE HEADER ─── */
+  .page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 28px;
+  }
+  .page-title { font-size: 22px; font-weight: 600; letter-spacing: -0.4px; }
+  .page-subtitle { font-size: 13px; color: var(--text3); margin-top: 2px; }
+
+  /* ─── CONFIG BANNER ─── */
+  .config-banner {
+    background: var(--amber-bg);
+    border: 1px solid rgba(255,179,71,0.3);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .config-banner .icon { font-size: 18px; color: var(--amber); margin-top: 1px; }
+  .config-banner h3 { font-size: 13px; font-weight: 600; color: var(--amber); margin-bottom: 6px; }
+  .config-banner p { font-size: 12px; color: var(--text2); line-height: 1.6; }
+  .config-banner code {
+    font-family: 'DM Mono', monospace;
+    background: var(--bg3);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 11px;
+    color: var(--amber);
+  }
+
+  /* ─── CONFIG PANEL ─── */
+  .config-section {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .config-section h3 { font-size: 14px; font-weight: 600; margin-bottom: 16px; color: var(--text); }
+  .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  /* ─── CARDS / STATS ─── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  .stat-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 18px 20px;
+    transition: border-color 0.2s;
+  }
+  .stat-card:hover { border-color: var(--border2); }
+  .stat-card .label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
+  .stat-card .value { font-size: 26px; font-weight: 600; letter-spacing: -0.5px; color: var(--text); }
+  .stat-card .sub { font-size: 11px; color: var(--text3); margin-top: 4px; }
+  .stat-card .value.green { color: var(--green); }
+  .stat-card .value.amber { color: var(--amber); }
+  .stat-card .value.blue { color: var(--blue); }
+  .stat-card .value.red { color: var(--red); }
+
+  /* ─── PANELS ─── */
+  .panel {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+  }
+  .panel-title { font-size: 14px; font-weight: 600; color: var(--text); }
+
+  /* ─── TABLE ─── */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--text);
+    vertical-align: middle;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--bg3); }
+
+  /* ─── BADGE ─── */
+  .badge {
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .badge-green { background: var(--green-bg); color: var(--green); }
+  .badge-red { background: var(--red-bg); color: var(--red); }
+  .badge-amber { background: var(--amber-bg); color: var(--amber); }
+  .badge-blue { background: var(--blue-bg); color: var(--blue); }
+
+  /* ─── FORM ELEMENTS ─── */
+  .form-grid { display: grid; gap: 14px; }
+  .form-grid-2 { grid-template-columns: 1fr 1fr; }
+  .form-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .form-group label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text2);
+    margin-bottom: 6px;
+  }
+  input, select, textarea {
+    width: 100%;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 9px 12px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  select option { background: var(--bg3); }
+  textarea { resize: vertical; min-height: 80px; }
+
+  /* ─── BUTTONS ─── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 18px;
+    border-radius: var(--radius);
+    border: none;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+  }
+  .btn-primary:hover { background: var(--accent2); }
+  .btn-secondary {
+    background: var(--bg3);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { border-color: var(--border2); background: var(--bg4); }
+  .btn-danger {
+    background: var(--red-bg);
+    color: var(--red);
+    border: 1px solid rgba(255,77,106,0.2);
+  }
+  .btn-danger:hover { background: rgba(255,77,106,0.2); }
+  .btn-green {
+    background: var(--green-bg);
+    color: var(--green);
+    border: 1px solid rgba(0,214,143,0.2);
+  }
+  .btn-sm { padding: 5px 12px; font-size: 12px; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ─── DIVIDER ─── */
+  .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
+  /* ─── INVOICE ─── */
+  .invoice-preview {
+    background: #fff;
+    color: #1a1a2e;
+    border-radius: var(--radius-lg);
+    padding: 32px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .invoice-preview h2 { font-size: 22px; font-weight: 700; color: #1a1a2e; }
+  .invoice-preview .inv-meta { color: #555; margin-top: 4px; font-size: 12px; }
+  .invoice-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; }
+  .inv-badge {
+    background: #6c63ff;
+    color: #fff;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .inv-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+  .inv-table th { background: #f0f0fa; padding: 8px 12px; text-align: left; font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 0.7px; }
+  .inv-table td { padding: 10px 12px; border-bottom: 1px solid #eee; font-size: 13px; }
+  .inv-totals { text-align: right; }
+  .inv-total-row { display: flex; justify-content: flex-end; gap: 40px; padding: 4px 0; font-size: 13px; }
+  .inv-total-row.grand { font-weight: 700; font-size: 16px; color: #6c63ff; border-top: 2px solid #6c63ff; padding-top: 8px; margin-top: 4px; }
+
+  /* ─── CHART ─── */
+  .chart-container { position: relative; height: 260px; }
+
+  /* ─── MODAL ─── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-lg);
+    padding: 28px;
+    max-width: 680px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .modal-title { font-size: 16px; font-weight: 600; }
+
+  /* ─── PAGE VISIBILITY ─── */
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* ─── ITEMS LIST IN INVOICE ─── */
+  .items-list { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .item-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr 32px;
+    gap: 8px;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .item-row:last-child { border-bottom: none; }
+  .item-row.header-row {
+    background: var(--bg3);
+    font-size: 11px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+  }
+
+  /* ─── TOAST ─── */
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--bg4);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 12px 18px;
+    font-size: 13px;
+    color: var(--text);
+    z-index: 9999;
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all 0.3s;
+    max-width: 320px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  #toast.show { transform: translateY(0); opacity: 1; }
+  #toast.success { border-color: rgba(0,214,143,0.4); }
+  #toast.error { border-color: rgba(255,77,106,0.4); }
+
+  /* ─── LOADING ─── */
+  .spinner {
+    width: 18px; height: 18px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    display: inline-block;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .empty-state {
+    text-align: center;
+    padding: 48px 20px;
+    color: var(--text3);
+  }
+  .empty-state .icon { font-size: 36px; margin-bottom: 12px; display: block; }
+  .empty-state p { font-size: 13px; }
+
+  /* ─── SCROLLBAR ─── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 768px) {
+    .sidebar { width: 200px; }
+    .main { margin-left: 200px; padding: 16px; }
+    .form-grid-2, .form-grid-3 { grid-template-columns: 1fr; }
+    .config-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div id="toast"></div>
+
+<!-- ─── SIDEBAR ─── -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <h1>Gestión<span>Pro</span></h1>
+    <p>Sistema de Gestión Empresarial</p>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-label">Principal</div>
+    <button class="nav-btn active" onclick="showPage('config')">
+      <span class="icon">⚙️</span> Configuración
+    </button>
+    <div class="nav-label">Módulos</div>
+    <button class="nav-btn" onclick="showPage('inventario')">
+      <span class="icon">📦</span> Inventario
+    </button>
+    <button class="nav-btn" onclick="showPage('ventas')">
+      <span class="icon">🧾</span> Ventas / Facturación
+    </button>
+    <button class="nav-btn" onclick="showPage('estadisticas')">
+      <span class="icon">📊</span> Estadísticas
+    </button>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="db-status">
+      <div class="db-dot" id="dbDot"></div>
+      <span id="dbStatus">Sin configurar</span>
+    </div>
+    <div>MongoDB Atlas</div>
+  </div>
+</aside>
+
+<!-- ─── MAIN ─── -->
+<main class="main">
+
+<!-- ═══════════════════════════════════════════════
+     PÁGINA: CONFIGURACIÓN
+═══════════════════════════════════════════════ -->
+<div id="page-config" class="page active">
+  <div class="page-header">
+    <div>
+      <div class="page-title">⚙️ Configuración</div>
+      <div class="page-subtitle">Conecta MongoDB Atlas y EmailJS para activar la app</div>
+    </div>
+  </div>
+
+  <div class="config-banner">
+    <span class="icon">⚠️</span>
+    <div>
+      <h3>Guía rápida de configuración</h3>
+      <p>
+        Sigue los pasos a continuación para obtener tus credenciales. Una vez guardadas, la app estará lista.
+        Los datos se guardan en el navegador (localStorage).
+      </p>
+    </div>
+  </div>
+
+  <!-- MONGODB -->
+  <div class="config-section">
+    <h3>🍃 MongoDB Atlas — Conexión via Backend Local</h3>
+    <ol style="color: var(--text2); font-size: 13px; line-height: 2; padding-left: 18px; margin-bottom: 20px;">
+      <li>Entra a <strong style="color:var(--text)">mongodb.com/atlas</strong> → crea una cuenta gratuita</li>
+      <li>Crea un <strong style="color:var(--text)">Cluster M0</strong> (gratis) → elige región más cercana (ej: São Paulo)</li>
+      <li>En <strong style="color:var(--text)">Database Access</strong> → crea un usuario con password. Guárdalos.</li>
+      <li>En <strong style="color:var(--text)">Network Access</strong> → agrega IP <code>0.0.0.0/0</code> (permite todo)</li>
+      <li>En tu cluster → <strong style="color:var(--text)">Connect</strong> → <strong style="color:var(--text)">Drivers</strong> → copia el SRV string y pégalo en el archivo <code>.env</code></li>
+      <li>Ejecuta el backend: <code>node server.js</code> y deja la terminal abierta</li>
+      <li>La URL del backend por defecto es <code>http://localhost:3001</code></li>
+    </ol>
+    <div class="config-grid">
+      <div class="form-group" style="grid-column: 1 / -1;">
+        <label>URL del Backend (donde está corriendo server.js)</label>
+        <input type="text" id="cfg-backend-url" placeholder="http://localhost:3001">
+        <p style="font-size:11px;color:var(--text3);margin-top:4px;">Si desplegas en Render u otro servicio, pon aquí la URL pública.</p>
+      </div>
+      <div class="form-group" style="grid-column: 1 / -1; display:none;">
+        <!-- Campos legacy mantenidos para compatibilidad interna -->
+        <input type="hidden" id="cfg-mongo-url">
+        <input type="hidden" id="cfg-mongo-key">
+        <input type="hidden" id="cfg-mongo-db">
+        <input type="hidden" id="cfg-mongo-cluster">
+      </div>
+    </div>
+  </div>
+
+  <!-- EMAILJS -->
+  <div class="config-section">
+    <h3>📧 EmailJS — Pasos para configurar</h3>
+    <ol style="color: var(--text2); font-size: 13px; line-height: 2; padding-left: 18px; margin-bottom: 20px;">
+      <li>Ve a <strong style="color:var(--text)">emailjs.com</strong> → crea cuenta gratuita (200 emails/mes)</li>
+      <li>En <strong style="color:var(--text)">Email Services</strong> → Add Service → elige Gmail u otro → conecta tu correo</li>
+      <li>Copia el <strong style="color:var(--text)">Service ID</strong></li>
+      <li>En <strong style="color:var(--text)">Email Templates</strong> → crea un template. Usa estas variables:<br>
+        <code>&#123;&#123;to_email&#125;&#125;</code> <code>&#123;&#123;to_name&#125;&#125;</code> <code>&#123;&#123;invoice_html&#125;&#125;</code> <code>&#123;&#123;invoice_number&#125;&#125;</code></li>
+      <li>Copia el <strong style="color:var(--text)">Template ID</strong></li>
+      <li>En <strong style="color:var(--text)">Account</strong> → copia tu <strong style="color:var(--text)">Public Key</strong></li>
+    </ol>
+    <div class="config-grid">
+      <div class="form-group">
+        <label>Service ID de EmailJS</label>
+        <input type="text" id="cfg-email-service" placeholder="service_xxxxxxx">
+      </div>
+      <div class="form-group">
+        <label>Template ID de EmailJS</label>
+        <input type="text" id="cfg-email-template" placeholder="template_xxxxxxx">
+      </div>
+      <div class="form-group">
+        <label>Public Key de EmailJS</label>
+        <input type="text" id="cfg-email-pubkey" placeholder="xxxxxxxxxxxxxxxxxxx">
+      </div>
+      <div class="form-group">
+        <label>Tu nombre de empresa / negocio</label>
+        <input type="text" id="cfg-empresa" placeholder="Mi Empresa S.A.S.">
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex; gap:12px; margin-top:8px;">
+    <button class="btn btn-primary" onclick="saveConfig()">💾 Guardar Configuración</button>
+    <button class="btn btn-secondary" onclick="testConnection()">🔌 Probar Conexión</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     PÁGINA: INVENTARIO
+═══════════════════════════════════════════════ -->
+<div id="page-inventario" class="page">
+  <div class="page-header">
+    <div>
+      <div class="page-title">📦 Inventario</div>
+      <div class="page-subtitle">Gestión de productos y stock</div>
+    </div>
+    <button class="btn btn-primary" onclick="openModal('modal-producto')">+ Agregar Producto</button>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="label">Total Productos</div>
+      <div class="value blue" id="stat-total-prods">—</div>
+      <div class="sub">en inventario</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Stock Total</div>
+      <div class="value green" id="stat-total-stock">—</div>
+      <div class="sub">unidades</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Valor del Inventario</div>
+      <div class="value" id="stat-valor-inv" style="font-size:20px;">—</div>
+      <div class="sub">a precio de venta</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Stock Bajo</div>
+      <div class="value red" id="stat-stock-bajo">—</div>
+      <div class="sub">productos con ≤ 5 uds</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Productos</span>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input type="text" id="search-prod" placeholder="Buscar producto..." style="width:200px;" oninput="filterProducts()">
+        <button class="btn btn-secondary btn-sm" onclick="loadInventario()">🔄 Actualizar</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th>Categoría</th>
+            <th>Precio Costo</th>
+            <th>Precio Venta</th>
+            <th>Stock</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="inv-tbody">
+          <tr><td colspan="7"><div class="empty-state"><span class="icon">📦</span><p>Cargando productos...</p></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     PÁGINA: VENTAS
+═══════════════════════════════════════════════ -->
+<div id="page-ventas" class="page">
+  <div class="page-header">
+    <div>
+      <div class="page-title">🧾 Ventas y Facturación</div>
+      <div class="page-subtitle">Crear facturas y gestionar ventas</div>
+    </div>
+    <button class="btn btn-primary" onclick="openModal('modal-factura')">+ Nueva Factura</button>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="label">Ventas del Mes</div>
+      <div class="value green" id="stat-ventas-mes">—</div>
+      <div class="sub" id="stat-ventas-mes-sub">en el mes actual</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Total Facturado</div>
+      <div class="value" id="stat-total-fact" style="font-size:20px;">—</div>
+      <div class="sub">mes actual</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Facturas Totales</div>
+      <div class="value blue" id="stat-facturas-total">—</div>
+      <div class="sub">historial completo</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Ticket Promedio</div>
+      <div class="value amber" id="stat-ticket-avg">—</div>
+      <div class="sub">mes actual</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Historial de Facturas</span>
+      <div style="display:flex; gap:8px;">
+        <input type="month" id="filter-month" onchange="loadVentas()" style="width:180px;">
+        <button class="btn btn-secondary btn-sm" onclick="loadVentas()">🔄 Actualizar</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>N° Factura</th>
+            <th>Cliente</th>
+            <th>Cédula</th>
+            <th>Teléfono</th>
+            <th>Subtotal</th>
+            <th>Descuento</th>
+            <th>Total</th>
+            <th>Fecha</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="ventas-tbody">
+          <tr><td colspan="9"><div class="empty-state"><span class="icon">🧾</span><p>Cargando facturas...</p></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     PÁGINA: ESTADÍSTICAS
+═══════════════════════════════════════════════ -->
+<div id="page-estadisticas" class="page">
+  <div class="page-header">
+    <div>
+      <div class="page-title">📊 Estadísticas</div>
+      <div class="page-subtitle">Análisis mensual de ventas e inventario</div>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <select id="stats-year" onchange="loadStats()" style="width:120px;">
+        <option value="2025">2025</option>
+        <option value="2026" selected>2026</option>
+      </select>
+      <button class="btn btn-green" onclick="exportExcel()">📥 Exportar Excel</button>
+    </div>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="label">Ventas (Año)</div>
+      <div class="value green" id="stats-ventas-anio">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Ingresos (Año)</div>
+      <div class="value" id="stats-ingresos-anio" style="font-size:20px;">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Mejor Mes</div>
+      <div class="value blue" id="stats-mejor-mes">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Productos Vendidos</div>
+      <div class="value amber" id="stats-prods-vendidos">—</div>
+    </div>
+  </div>
+
+  <div style="display:grid; grid-template-columns: 2fr 1fr; gap:20px; margin-bottom:20px;">
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Ventas Mensuales</span></div>
+      <div class="chart-container">
+        <canvas id="chartVentas"></canvas>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Ingresos por Mes</span></div>
+      <div class="chart-container">
+        <canvas id="chartIngresos"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header"><span class="panel-title">Resumen Mensual Detallado</span></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Mes</th>
+            <th>N° Ventas</th>
+            <th>Ingresos Brutos</th>
+            <th>Descuentos</th>
+            <th>Ingresos Netos</th>
+            <th>Ticket Promedio</th>
+          </tr>
+        </thead>
+        <tbody id="stats-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+</main><!-- /main -->
+
+<!-- ═══════════════════════════════════════════════
+     MODAL: AGREGAR / EDITAR PRODUCTO
+═══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-producto">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="prod-modal-title">Agregar Producto</span>
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-producto')">✕</button>
+    </div>
+    <div class="form-grid form-grid-2">
+      <div class="form-group" style="grid-column:1/-1">
+        <label>Nombre del Producto *</label>
+        <input type="text" id="prod-nombre" placeholder="Ej: Aceite de motor 20W50">
+      </div>
+      <div class="form-group">
+        <label>Categoría</label>
+        <input type="text" id="prod-categoria" placeholder="Ej: Lubricantes, Repuestos...">
+      </div>
+      <div class="form-group">
+        <label>Referencia / Código</label>
+        <input type="text" id="prod-ref" placeholder="REF-001">
+      </div>
+      <div class="form-group">
+        <label>Precio de Costo</label>
+        <input type="number" id="prod-costo" placeholder="0" min="0" step="0.01">
+      </div>
+      <div class="form-group">
+        <label>Precio de Venta *</label>
+        <input type="number" id="prod-precio" placeholder="0" min="0" step="0.01">
+      </div>
+      <div class="form-group">
+        <label>Stock Inicial *</label>
+        <input type="number" id="prod-stock" placeholder="0" min="0">
+      </div>
+      <div class="form-group">
+        <label>Unidad de Medida</label>
+        <select id="prod-unidad">
+          <option>Unidad</option>
+          <option>Litro</option>
+          <option>Kilo</option>
+          <option>Metro</option>
+          <option>Caja</option>
+          <option>Par</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group" style="margin-top:14px;">
+      <label>Descripción</label>
+      <textarea id="prod-desc" placeholder="Descripción opcional del producto..." rows="2"></textarea>
+    </div>
+    <input type="hidden" id="prod-edit-id">
+    <div style="display:flex; gap:10px; margin-top:20px;">
+      <button class="btn btn-primary" onclick="saveProducto()">💾 Guardar Producto</button>
+      <button class="btn btn-secondary" onclick="closeModal('modal-producto')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     MODAL: NUEVA FACTURA
+═══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-factura">
+  <div class="modal" style="max-width:780px;">
+    <div class="modal-header">
+      <span class="modal-title">Nueva Factura</span>
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-factura')">✕</button>
+    </div>
+
+    <!-- Datos del cliente -->
+    <div style="background:var(--bg3); border-radius:var(--radius); padding:16px; margin-bottom:16px;">
+      <div style="font-size:12px; font-weight:600; color:var(--text3); margin-bottom:12px; text-transform:uppercase; letter-spacing:0.8px;">Datos del Cliente</div>
+      <div class="form-grid form-grid-3">
+        <div class="form-group">
+          <label>Nombre / Razón Social *</label>
+          <input type="text" id="fac-nombre" placeholder="Nombre del cliente">
+        </div>
+        <div class="form-group">
+          <label>Cédula / NIT *</label>
+          <input type="text" id="fac-cedula" placeholder="123456789">
+        </div>
+        <div class="form-group">
+          <label>Teléfono *</label>
+          <input type="tel" id="fac-telefono" placeholder="3001234567">
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label>Correo Electrónico (para enviar factura)</label>
+          <input type="email" id="fac-email" placeholder="cliente@correo.com">
+        </div>
+      </div>
+    </div>
+
+    <!-- Productos -->
+    <div style="background:var(--bg3); border-radius:var(--radius); padding:16px; margin-bottom:16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <div style="font-size:12px; font-weight:600; color:var(--text3); text-transform:uppercase; letter-spacing:0.8px;">Productos / Servicios</div>
+        <button class="btn btn-secondary btn-sm" onclick="addInvoiceItem()">+ Agregar Ítem</button>
+      </div>
+      <div class="items-list" id="invoice-items">
+        <div class="item-row header-row">
+          <span>Producto / Servicio</span>
+          <span>Cant.</span>
+          <span>Precio Unit.</span>
+          <span>Subtotal</span>
+          <span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mano de obra y descuento -->
+    <div class="form-grid form-grid-2" style="margin-bottom:16px;">
+      <div style="background:var(--bg3); border-radius:var(--radius); padding:14px;">
+        <div style="font-size:12px; font-weight:600; color:var(--text3); margin-bottom:10px; text-transform:uppercase; letter-spacing:0.8px;">🔧 Mano de Obra (Opcional)</div>
+        <div class="form-group">
+          <label>Descripción de la mano de obra</label>
+          <input type="text" id="fac-mo-desc" placeholder="Ej: Cambio de aceite, instalación...">
+        </div>
+        <div class="form-group" style="margin-top:10px;">
+          <label>Valor Mano de Obra</label>
+          <input type="number" id="fac-mo-valor" placeholder="0" min="0" step="0.01" oninput="calcTotal()">
+        </div>
+      </div>
+      <div style="background:var(--bg3); border-radius:var(--radius); padding:14px;">
+        <div style="font-size:12px; font-weight:600; color:var(--text3); margin-bottom:10px; text-transform:uppercase; letter-spacing:0.8px;">🏷️ Descuento (Opcional)</div>
+        <div class="form-group">
+          <label>Tipo de descuento</label>
+          <select id="fac-desc-tipo" onchange="calcTotal()">
+            <option value="porcentaje">Porcentaje (%)</option>
+            <option value="fijo">Valor fijo ($)</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-top:10px;">
+          <label>Valor del descuento</label>
+          <input type="number" id="fac-descuento" placeholder="0" min="0" step="0.01" oninput="calcTotal()">
+        </div>
+      </div>
+    </div>
+
+    <!-- Totales -->
+    <div style="background:var(--accent-glow); border:1px solid rgba(108,99,255,0.3); border-radius:var(--radius); padding:14px; margin-bottom:16px;">
+      <div style="display:flex; flex-direction:column; gap:6px; font-size:13px;">
+        <div style="display:flex; justify-content:space-between;">
+          <span style="color:var(--text2)">Subtotal Productos:</span>
+          <span id="tot-productos">$0</span>
+        </div>
+        <div style="display:flex; justify-content:space-between;">
+          <span style="color:var(--text2)">Mano de Obra:</span>
+          <span id="tot-mano-obra">$0</span>
+        </div>
+        <div style="display:flex; justify-content:space-between;">
+          <span style="color:var(--text2)">Descuento:</span>
+          <span id="tot-descuento" style="color:var(--red)">-$0</span>
+        </div>
+        <hr class="divider" style="margin:6px 0;">
+        <div style="display:flex; justify-content:space-between; font-size:16px; font-weight:600; color:var(--accent)">
+          <span>TOTAL:</span>
+          <span id="tot-total">$0</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:10px;">
+      <button class="btn btn-primary" onclick="saveFactura()">💾 Guardar Factura</button>
+      <button class="btn btn-secondary" onclick="closeModal('modal-factura')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     MODAL: VER FACTURA
+═══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-ver-factura">
+  <div class="modal" style="max-width:720px;">
+    <div class="modal-header">
+      <span class="modal-title">Vista de Factura</span>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-green btn-sm" id="btn-enviar-correo" onclick="enviarCorreo()">📧 Enviar por Correo</button>
+        <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-ver-factura')">✕</button>
+      </div>
+    </div>
+    <div id="invoice-preview-content"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     MODAL: EDITAR STOCK
+═══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-stock">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-header">
+      <span class="modal-title">Ajustar Stock</span>
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-stock')">✕</button>
+    </div>
+    <p style="color:var(--text2); font-size:13px; margin-bottom:16px;" id="stock-prod-name">Producto</p>
+    <div class="form-group">
+      <label>Tipo de Ajuste</label>
+      <select id="stock-tipo">
+        <option value="sumar">Agregar al stock</option>
+        <option value="restar">Restar del stock</option>
+        <option value="fijar">Fijar cantidad exacta</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin-top:12px;">
+      <label>Cantidad</label>
+      <input type="number" id="stock-cantidad" min="0" placeholder="0">
+    </div>
+    <input type="hidden" id="stock-prod-id">
+    <div style="display:flex; gap:10px; margin-top:20px;">
+      <button class="btn btn-primary" onclick="saveStock()">Actualizar Stock</button>
+      <button class="btn btn-secondary" onclick="closeModal('modal-stock')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+//  CONFIGURACIÓN Y ESTADO GLOBAL
+// ═══════════════════════════════════════════════════
+let CFG = {};
+let invoiceItems = [];
+let currentInvoice = null;
+let allProducts = [];
+let chartVentas = null, chartIngresos = null;
+
+const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+function loadConfig() {
+  try {
+    const saved = localStorage.getItem('gestionpro_cfg');
+    if (saved) {
+      CFG = JSON.parse(saved);
+      document.getElementById('cfg-backend-url').value = CFG.backendUrl || 'http://localhost:3001';
+      document.getElementById('cfg-email-service').value = CFG.emailService || '';
+      document.getElementById('cfg-email-template').value = CFG.emailTemplate || '';
+      document.getElementById('cfg-email-pubkey').value = CFG.emailPubKey || '';
+      document.getElementById('cfg-empresa').value = CFG.empresa || '';
+      if (CFG.backendUrl) {
+        document.getElementById('dbDot').className = 'db-dot ok';
+        document.getElementById('dbStatus').textContent = 'Configurado';
+        if (CFG.emailPubKey) emailjs.init(CFG.emailPubKey);
+      }
+    }
+  } catch(e) {}
+}
+
+function saveConfig() {
+  const backendUrl = (document.getElementById('cfg-backend-url').value.trim() || 'http://localhost:3001').replace(/\/$/, '');
+  CFG = {
+    backendUrl,
+    emailService: document.getElementById('cfg-email-service').value.trim(),
+    emailTemplate: document.getElementById('cfg-email-template').value.trim(),
+    emailPubKey: document.getElementById('cfg-email-pubkey').value.trim(),
+    empresa: document.getElementById('cfg-empresa').value.trim() || 'Mi Empresa'
+  };
+  if (!CFG.backendUrl) { toast('Ingresa la URL del backend', 'error'); return; }
+  localStorage.setItem('gestionpro_cfg', JSON.stringify(CFG));
+  if (CFG.emailPubKey) emailjs.init(CFG.emailPubKey);
+  toast('✅ Configuración guardada correctamente', 'success');
+  document.getElementById('dbDot').className = 'db-dot ok';
+  document.getElementById('dbStatus').textContent = 'Configurado';
+}
+
+async function testConnection() {
+  if (!CFG.backendUrl) { toast('Guarda la configuración primero', 'error'); return; }
+  toast('Probando conexión...', '');
+  try {
+    const r = await fetch(`${CFG.backendUrl}/health`);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error || 'Error desconocido');
+    toast('✅ Conexión exitosa con MongoDB Atlas!', 'success');
+    document.getElementById('dbDot').className = 'db-dot ok';
+    document.getElementById('dbStatus').textContent = 'Conectado';
+  } catch(e) {
+    toast('❌ Error de conexión: ' + e.message, 'error');
+    document.getElementById('dbDot').className = 'db-dot error';
+    document.getElementById('dbStatus').textContent = 'Error';
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  CLIENTE API — Habla con el backend Express local
+//  Emula la misma interfaz que usaba la Data API de Atlas
+// ═══════════════════════════════════════════════════
+async function mongoRequest(action, collection, body) {
+  if (!CFG.backendUrl) throw new Error('Backend no configurado. Ve a Configuración y guarda la URL.');
+  const url = `${CFG.backendUrl}/api/${collection}/${action}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {})
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
+}
+
+// ═══════════════════════════════════════════════════
+//  NAVEGACIÓN
+// ═══════════════════════════════════════════════════
+function showPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  event.currentTarget.classList.add('active');
+
+  if (page === 'inventario') loadInventario();
+  if (page === 'ventas') loadVentas();
+  if (page === 'estadisticas') loadStats();
+}
+
+// ═══════════════════════════════════════════════════
+//  INVENTARIO
+// ═══════════════════════════════════════════════════
+async function loadInventario() {
+  try {
+    const data = await mongoRequest('find', 'productos', { sort: { nombre: 1 } });
+    allProducts = data.documents || [];
+    renderInventario(allProducts);
+    updateInventarioStats(allProducts);
+  } catch(e) {
+    renderInventarioError(e.message);
+  }
+}
+
+function renderInventario(prods) {
+  const tbody = document.getElementById('inv-tbody');
+  if (!prods.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><span class="icon">📦</span><p>No hay productos aún. Agrega el primero.</p></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = prods.map(p => {
+    const stock = p.stock || 0;
+    const badge = stock <= 0 ? '<span class="badge badge-red">Sin stock</span>'
+                 : stock <= 5 ? '<span class="badge badge-amber">Stock bajo</span>'
+                 : '<span class="badge badge-green">Disponible</span>';
+    const costo = p.precioCosto ? `$${fmtNum(p.precioCosto)}` : '—';
+    return `<tr>
+      <td><strong>${p.nombre}</strong>${p.referencia ? `<br><span style="font-size:11px;color:var(--text3)">${p.referencia}</span>` : ''}</td>
+      <td>${p.categoria || '—'}</td>
+      <td>${costo}</td>
+      <td>$${fmtNum(p.precioVenta || 0)}</td>
+      <td><strong>${stock}</strong> ${p.unidad || ''}</td>
+      <td>${badge}</td>
+      <td>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-secondary btn-sm" onclick="editProducto('${p._id.$oid}')">✏️</button>
+          <button class="btn btn-secondary btn-sm" onclick="openStockModal('${p._id.$oid}','${p.nombre.replace(/'/g,"\\'")}',${stock})">📦</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteProducto('${p._id.$oid}')">🗑️</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function renderInventarioError(msg) {
+  document.getElementById('inv-tbody').innerHTML = `<tr><td colspan="7"><div class="empty-state"><span class="icon">⚠️</span><p>Error: ${msg}</p></div></td></tr>`;
+}
+
+function updateInventarioStats(prods) {
+  const total = prods.length;
+  const stock = prods.reduce((s,p) => s + (p.stock||0), 0);
+  const valor = prods.reduce((s,p) => s + (p.precioVenta||0)*(p.stock||0), 0);
+  const bajo = prods.filter(p => (p.stock||0) <= 5).length;
+  document.getElementById('stat-total-prods').textContent = total;
+  document.getElementById('stat-total-stock').textContent = fmtNum(stock);
+  document.getElementById('stat-valor-inv').textContent = '$'+fmtNum(valor);
+  document.getElementById('stat-stock-bajo').textContent = bajo;
+}
+
+function filterProducts() {
+  const q = document.getElementById('search-prod').value.toLowerCase();
+  const filtered = allProducts.filter(p =>
+    p.nombre.toLowerCase().includes(q) ||
+    (p.categoria||'').toLowerCase().includes(q) ||
+    (p.referencia||'').toLowerCase().includes(q)
+  );
+  renderInventario(filtered);
+}
+
+async function saveProducto() {
+  const nombre = document.getElementById('prod-nombre').value.trim();
+  const precioVenta = parseFloat(document.getElementById('prod-precio').value)||0;
+  const stock = parseInt(document.getElementById('prod-stock').value)||0;
+  if (!nombre) { toast('El nombre es requerido', 'error'); return; }
+  if (!precioVenta) { toast('El precio de venta es requerido', 'error'); return; }
+
+  const doc = {
+    nombre,
+    categoria: document.getElementById('prod-categoria').value.trim(),
+    referencia: document.getElementById('prod-ref').value.trim(),
+    precioCosto: parseFloat(document.getElementById('prod-costo').value)||0,
+    precioVenta,
+    stock,
+    unidad: document.getElementById('prod-unidad').value,
+    descripcion: document.getElementById('prod-desc').value.trim(),
+    updatedAt: { $date: { $numberLong: Date.now().toString() } }
+  };
+
+  try {
+    const editId = document.getElementById('prod-edit-id').value;
+    if (editId) {
+      await mongoRequest('updateOne', 'productos', {
+        filter: { _id: { $oid: editId } },
+        update: { $set: doc }
+      });
+      toast('✅ Producto actualizado', 'success');
+    } else {
+      doc.createdAt = { $date: { $numberLong: Date.now().toString() } };
+      await mongoRequest('insertOne', 'productos', { document: doc });
+      toast('✅ Producto agregado', 'success');
+    }
+    closeModal('modal-producto');
+    clearProductoForm();
+    loadInventario();
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+async function editProducto(id) {
+  const p = allProducts.find(x => x._id.$oid === id);
+  if (!p) return;
+  document.getElementById('prod-modal-title').textContent = 'Editar Producto';
+  document.getElementById('prod-edit-id').value = id;
+  document.getElementById('prod-nombre').value = p.nombre;
+  document.getElementById('prod-categoria').value = p.categoria||'';
+  document.getElementById('prod-ref').value = p.referencia||'';
+  document.getElementById('prod-costo').value = p.precioCosto||'';
+  document.getElementById('prod-precio').value = p.precioVenta||'';
+  document.getElementById('prod-stock').value = p.stock||'';
+  document.getElementById('prod-unidad').value = p.unidad||'Unidad';
+  document.getElementById('prod-desc').value = p.descripcion||'';
+  openModal('modal-producto');
+}
+
+async function deleteProducto(id) {
+  if (!confirm('¿Eliminar este producto? Esta acción no se puede deshacer.')) return;
+  try {
+    await mongoRequest('deleteOne', 'productos', { filter: { _id: { $oid: id } } });
+    toast('✅ Producto eliminado', 'success');
+    loadInventario();
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+function openStockModal(id, nombre, stock) {
+  document.getElementById('stock-prod-id').value = id;
+  document.getElementById('stock-prod-name').textContent = `${nombre} — Stock actual: ${stock}`;
+  document.getElementById('stock-cantidad').value = '';
+  openModal('modal-stock');
+}
+
+async function saveStock() {
+  const id = document.getElementById('stock-prod-id').value;
+  const tipo = document.getElementById('stock-tipo').value;
+  const cant = parseInt(document.getElementById('stock-cantidad').value)||0;
+  if (!cant && tipo !== 'fijar') { toast('Ingresa una cantidad', 'error'); return; }
+  const p = allProducts.find(x => x._id.$oid === id);
+  let newStock = p ? (p.stock||0) : 0;
+  if (tipo === 'sumar') newStock += cant;
+  else if (tipo === 'restar') newStock = Math.max(0, newStock - cant);
+  else newStock = cant;
+  try {
+    await mongoRequest('updateOne', 'productos', {
+      filter: { _id: { $oid: id } },
+      update: { $set: { stock: newStock, updatedAt: { $date: { $numberLong: Date.now().toString() } } } }
+    });
+    toast('✅ Stock actualizado: ' + newStock + ' unidades', 'success');
+    closeModal('modal-stock');
+    loadInventario();
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+function clearProductoForm() {
+  ['prod-nombre','prod-categoria','prod-ref','prod-costo','prod-precio','prod-stock','prod-desc','prod-edit-id'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('prod-modal-title').textContent = 'Agregar Producto';
+  document.getElementById('prod-unidad').value = 'Unidad';
+}
+
+// ═══════════════════════════════════════════════════
+//  VENTAS
+// ═══════════════════════════════════════════════════
+let invoiceItemCount = 0;
+
+function addInvoiceItem() {
+  invoiceItemCount++;
+  const id = 'item_' + invoiceItemCount;
+  const container = document.getElementById('invoice-items');
+  const div = document.createElement('div');
+  div.className = 'item-row';
+  div.id = id;
+  div.innerHTML = `
+    <div>
+      <select onchange="onProductSelect(this, '${id}')" style="margin-bottom:4px;">
+        <option value="">— Seleccionar producto —</option>
+        ${allProducts.map(p => `<option value="${p._id.$oid}" data-precio="${p.precioVenta}" data-nombre="${p.nombre}">${p.nombre}</option>`).join('')}
+        <option value="__manual__">✏️ Ingresar manualmente</option>
+      </select>
+      <input type="text" id="${id}_nombre" placeholder="Nombre del ítem" style="display:none;margin-top:4px;">
+    </div>
+    <input type="number" id="${id}_cant" value="1" min="1" style="width:70px;" oninput="calcItemTotal('${id}'); calcTotal()">
+    <input type="number" id="${id}_precio" value="0" min="0" step="0.01" style="width:110px;" oninput="calcItemTotal('${id}'); calcTotal()">
+    <span id="${id}_sub" style="font-weight:500;">$0</span>
+    <button class="btn btn-danger btn-sm" onclick="removeItem('${id}')">✕</button>
+  `;
+  container.appendChild(div);
+  calcTotal();
+}
+
+function onProductSelect(sel, id) {
+  if (sel.value === '__manual__') {
+    document.getElementById(id+'_nombre').style.display = 'block';
+    document.getElementById(id+'_precio').value = 0;
+  } else if (sel.value) {
+    const opt = sel.options[sel.selectedIndex];
+    document.getElementById(id+'_precio').value = opt.dataset.precio || 0;
+    document.getElementById(id+'_nombre').style.display = 'none';
+    calcItemTotal(id);
+    calcTotal();
+  }
+}
+
+function calcItemTotal(id) {
+  const cant = parseFloat(document.getElementById(id+'_cant').value)||0;
+  const precio = parseFloat(document.getElementById(id+'_precio').value)||0;
+  const sub = cant * precio;
+  document.getElementById(id+'_sub').textContent = '$' + fmtNum(sub);
+  return sub;
+}
+
+function removeItem(id) {
+  document.getElementById(id).remove();
+  calcTotal();
+}
+
+function calcTotal() {
+  let subtotalProd = 0;
+  document.querySelectorAll('#invoice-items .item-row:not(.header-row)').forEach(row => {
+    const id = row.id;
+    const cant = parseFloat(document.getElementById(id+'_cant')?.value)||0;
+    const precio = parseFloat(document.getElementById(id+'_precio')?.value)||0;
+    subtotalProd += cant * precio;
+    if (document.getElementById(id+'_sub')) {
+      document.getElementById(id+'_sub').textContent = '$' + fmtNum(cant*precio);
+    }
+  });
+
+  const mo = parseFloat(document.getElementById('fac-mo-valor').value)||0;
+  const descValor = parseFloat(document.getElementById('fac-descuento').value)||0;
+  const descTipo = document.getElementById('fac-desc-tipo').value;
+  const base = subtotalProd + mo;
+  const descAmt = descTipo === 'porcentaje' ? base * (descValor/100) : descValor;
+  const total = Math.max(0, base - descAmt);
+
+  document.getElementById('tot-productos').textContent = '$'+fmtNum(subtotalProd);
+  document.getElementById('tot-mano-obra').textContent = '$'+fmtNum(mo);
+  document.getElementById('tot-descuento').textContent = '-$'+fmtNum(descAmt);
+  document.getElementById('tot-total').textContent = '$'+fmtNum(total);
+}
+
+function getInvoiceData() {
+  const items = [];
+  document.querySelectorAll('#invoice-items .item-row:not(.header-row)').forEach(row => {
+    const id = row.id;
+    const sel = row.querySelector('select');
+    const cant = parseFloat(document.getElementById(id+'_cant')?.value)||0;
+    const precio = parseFloat(document.getElementById(id+'_precio')?.value)||0;
+    let nombre = '';
+    if (sel && sel.value === '__manual__') {
+      nombre = document.getElementById(id+'_nombre')?.value || 'Ítem';
+    } else if (sel && sel.value) {
+      nombre = sel.options[sel.selectedIndex]?.dataset.nombre || '';
+    }
+    if (nombre && cant > 0) {
+      items.push({ nombre, cantidad: cant, precioUnit: precio, subtotal: cant*precio, productoId: sel?.value !== '__manual__' ? sel?.value : null });
+    }
+  });
+  return items;
+}
+
+async function saveFactura() {
+  const nombre = document.getElementById('fac-nombre').value.trim();
+  const cedula = document.getElementById('fac-cedula').value.trim();
+  const telefono = document.getElementById('fac-telefono').value.trim();
+  if (!nombre || !cedula || !telefono) { toast('Nombre, cédula y teléfono son requeridos', 'error'); return; }
+
+  const items = getInvoiceData();
+  if (!items.length) { toast('Agrega al menos un producto o servicio', 'error'); return; }
+
+  const mo = parseFloat(document.getElementById('fac-mo-valor').value)||0;
+  const moDesc = document.getElementById('fac-mo-desc').value.trim();
+  const descValor = parseFloat(document.getElementById('fac-descuento').value)||0;
+  const descTipo = document.getElementById('fac-desc-tipo').value;
+  const subtotalProd = items.reduce((s,i) => s+i.subtotal, 0);
+  const base = subtotalProd + mo;
+  const descAmt = descTipo === 'porcentaje' ? base*(descValor/100) : descValor;
+  const total = Math.max(0, base - descAmt);
+
+  const now = new Date();
+  const numFactura = 'FAC-' + now.getFullYear() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0') + '-' + Math.floor(Math.random()*9000+1000);
+
+  const doc = {
+    numeroFactura: numFactura,
+    cliente: { nombre, cedula, telefono, email: document.getElementById('fac-email').value.trim() },
+    items,
+    manoDeObra: { descripcion: moDesc, valor: mo },
+    descuento: { tipo: descTipo, valor: descValor, monto: descAmt },
+    subtotal: subtotalProd,
+    total,
+    fecha: { $date: { $numberLong: Date.now().toString() } },
+    createdAt: { $date: { $numberLong: Date.now().toString() } }
+  };
+
+  try {
+    await mongoRequest('insertOne', 'facturas', { document: doc });
+
+    // Actualizar stock
+    for (const item of items) {
+      if (item.productoId) {
+        await mongoRequest('updateOne', 'productos', {
+          filter: { _id: { $oid: item.productoId } },
+          update: { $inc: { stock: -item.cantidad } }
+        });
+      }
+    }
+
+    toast('✅ Factura guardada: ' + numFactura, 'success');
+    closeModal('modal-factura');
+    clearFacturaForm();
+    loadVentas();
+    currentInvoice = doc;
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+function clearFacturaForm() {
+  ['fac-nombre','fac-cedula','fac-telefono','fac-email','fac-mo-desc','fac-mo-valor','fac-descuento'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  const items = document.getElementById('invoice-items');
+  const header = items.querySelector('.header-row');
+  items.innerHTML = '';
+  items.appendChild(header);
+  invoiceItemCount = 0;
+  calcTotal();
+}
+
+async function loadVentas() {
+  try {
+    const monthFilter = document.getElementById('filter-month').value;
+    let filter = {};
+    if (monthFilter) {
+      const [y, m] = monthFilter.split('-').map(Number);
+      const start = new Date(y, m-1, 1).getTime();
+      const end = new Date(y, m, 0, 23, 59, 59).getTime();
+      filter = { 'fecha.$date.$numberLong': { $gte: start.toString(), $lte: end.toString() } };
+    }
+    const data = await mongoRequest('find', 'facturas', {
+      filter,
+      sort: { 'fecha.$date.$numberLong': -1 },
+      limit: 200
+    });
+    const facturas = data.documents || [];
+    renderVentas(facturas);
+    updateVentasStats(facturas);
+  } catch(e) {
+    document.getElementById('ventas-tbody').innerHTML = `<tr><td colspan="9"><div class="empty-state"><span class="icon">⚠️</span><p>Error: ${e.message}</p></div></td></tr>`;
+  }
+}
+
+function renderVentas(facturas) {
+  const tbody = document.getElementById('ventas-tbody');
+  if (!facturas.length) {
+    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><span class="icon">🧾</span><p>No hay facturas en este período</p></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = facturas.map(f => {
+    const fecha = new Date(parseInt(f.fecha?.$date?.$numberLong || Date.now()));
+    return `<tr>
+      <td><span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--accent)">${f.numeroFactura}</span></td>
+      <td><strong>${f.cliente?.nombre}</strong></td>
+      <td style="font-size:12px;color:var(--text3)">${f.cliente?.cedula}</td>
+      <td style="font-size:12px">${f.cliente?.telefono}</td>
+      <td>$${fmtNum(f.subtotal||0)}</td>
+      <td style="color:var(--red)">-$${fmtNum(f.descuento?.monto||0)}</td>
+      <td><strong style="color:var(--green)">$${fmtNum(f.total||0)}</strong></td>
+      <td style="font-size:12px;color:var(--text3)">${fecha.toLocaleDateString('es-CO')}</td>
+      <td>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-secondary btn-sm" onclick='verFactura(${JSON.stringify(f).replace(/'/g,"&#39;")})'>👁️ Ver</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function updateVentasStats(facturas) {
+  const now = new Date();
+  const mesActual = facturas.filter(f => {
+    const d = new Date(parseInt(f.fecha?.$date?.$numberLong || 0));
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  });
+  const totalFact = facturas.reduce((s,f) => s+(f.total||0), 0);
+  const totalMes = mesActual.reduce((s,f) => s+(f.total||0), 0);
+  const avg = mesActual.length ? totalMes/mesActual.length : 0;
+
+  document.getElementById('stat-ventas-mes').textContent = mesActual.length;
+  document.getElementById('stat-total-fact').textContent = '$'+fmtNum(totalMes);
+  document.getElementById('stat-facturas-total').textContent = facturas.length;
+  document.getElementById('stat-ticket-avg').textContent = '$'+fmtNum(avg);
+}
+
+function verFactura(f) {
+  currentInvoice = f;
+  const html = buildInvoiceHTML(f);
+  document.getElementById('invoice-preview-content').innerHTML = html;
+  openModal('modal-ver-factura');
+}
+
+function buildInvoiceHTML(f) {
+  const fecha = new Date(parseInt(f.fecha?.$date?.$numberLong || Date.now()));
+  const empresa = CFG.empresa || 'Mi Empresa';
+  const itemsHTML = (f.items||[]).map(i => `
+    <tr>
+      <td>${i.nombre}</td>
+      <td style="text-align:center">${i.cantidad}</td>
+      <td style="text-align:right">$${fmtNum(i.precioUnit)}</td>
+      <td style="text-align:right">$${fmtNum(i.subtotal)}</td>
+    </tr>`).join('');
+  const moRow = f.manoDeObra?.valor ? `<tr><td>${f.manoDeObra.descripcion||'Mano de obra'}</td><td style="text-align:center">1</td><td style="text-align:right">$${fmtNum(f.manoDeObra.valor)}</td><td style="text-align:right">$${fmtNum(f.manoDeObra.valor)}</td></tr>` : '';
+
+  return `<div class="invoice-preview">
+    <div class="invoice-header">
+      <div>
+        <h2>${empresa}</h2>
+        <div class="inv-meta">Fecha: ${fecha.toLocaleDateString('es-CO')} | ${fecha.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'})}</div>
+      </div>
+      <div style="text-align:right">
+        <span class="inv-badge">FACTURA</span>
+        <div style="font-size:13px;font-weight:700;color:#333;margin-top:6px;font-family:'DM Mono',monospace">${f.numeroFactura}</div>
+      </div>
+    </div>
+    <div style="background:#f0f0fa;border-radius:8px;padding:12px 16px;margin-bottom:20px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
+        <div><span style="color:#888">Cliente:</span> <strong>${f.cliente?.nombre}</strong></div>
+        <div><span style="color:#888">Cédula:</span> ${f.cliente?.cedula}</div>
+        <div><span style="color:#888">Teléfono:</span> ${f.cliente?.telefono}</div>
+        <div><span style="color:#888">Correo:</span> ${f.cliente?.email||'—'}</div>
+      </div>
+    </div>
+    <table class="inv-table">
+      <thead><tr><th>Descripción</th><th style="text-align:center">Cant.</th><th style="text-align:right">Precio Unit.</th><th style="text-align:right">Subtotal</th></tr></thead>
+      <tbody>${itemsHTML}${moRow}</tbody>
+    </table>
+    <div class="inv-totals">
+      <div class="inv-total-row"><span>Subtotal:</span><span>$${fmtNum(f.subtotal||0)}</span></div>
+      ${f.manoDeObra?.valor ? `<div class="inv-total-row"><span>Mano de obra:</span><span>$${fmtNum(f.manoDeObra.valor)}</span></div>` : ''}
+      ${f.descuento?.monto ? `<div class="inv-total-row" style="color:#e24b4a"><span>Descuento${f.descuento.tipo==='porcentaje'?' ('+f.descuento.valor+'%)':''}:</span><span>-$${fmtNum(f.descuento.monto)}</span></div>` : ''}
+      <div class="inv-total-row grand"><span>TOTAL PAGADO:</span><span>$${fmtNum(f.total||0)}</span></div>
+    </div>
+    <div style="margin-top:24px;padding-top:16px;border-top:1px solid #eee;font-size:11px;color:#aaa;text-align:center">
+      Gracias por su compra — ${empresa}
+    </div>
+  </div>`;
+}
+
+async function enviarCorreo() {
+  if (!currentInvoice) return;
+  const email = currentInvoice.cliente?.email;
+  if (!email) { toast('La factura no tiene correo del cliente', 'error'); return; }
+  if (!CFG.emailService || !CFG.emailTemplate || !CFG.emailPubKey) {
+    toast('Configura EmailJS primero', 'error'); return;
+  }
+  const btn = document.getElementById('btn-enviar-correo');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Enviando...';
+  try {
+    await emailjs.send(CFG.emailService, CFG.emailTemplate, {
+      to_email: email,
+      to_name: currentInvoice.cliente?.nombre,
+      invoice_number: currentInvoice.numeroFactura,
+      invoice_html: buildInvoiceHTML(currentInvoice),
+      empresa: CFG.empresa || 'Mi Empresa'
+    });
+    toast('✅ Factura enviada a ' + email, 'success');
+    btn.innerHTML = '✅ Enviado';
+  } catch(e) {
+    toast('Error al enviar: ' + (e.text || e.message), 'error');
+    btn.disabled = false;
+    btn.innerHTML = '📧 Enviar por Correo';
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  ESTADÍSTICAS
+// ═══════════════════════════════════════════════════
+async function loadStats() {
+  const year = parseInt(document.getElementById('stats-year').value) || new Date().getFullYear();
+  try {
+    const start = new Date(year, 0, 1).getTime();
+    const end = new Date(year, 11, 31, 23, 59, 59).getTime();
+    const data = await mongoRequest('find', 'facturas', {
+      filter: { 'fecha.$date.$numberLong': { $gte: start.toString(), $lte: end.toString() } },
+      limit: 1000
+    });
+    const facturas = data.documents || [];
+
+    const byMonth = Array.from({length:12}, () => ({ count:0, bruto:0, descuento:0, neto:0 }));
+    facturas.forEach(f => {
+      const m = new Date(parseInt(f.fecha?.$date?.$numberLong||0)).getMonth();
+      byMonth[m].count++;
+      byMonth[m].bruto += (f.subtotal||0) + (f.manoDeObra?.valor||0);
+      byMonth[m].descuento += f.descuento?.monto||0;
+      byMonth[m].neto += f.total||0;
+    });
+
+    const totalVentas = facturas.length;
+    const totalIngresos = facturas.reduce((s,f) => s+(f.total||0), 0);
+    const prodCount = facturas.reduce((s,f) => s+(f.items||[]).reduce((a,i)=>a+i.cantidad,0), 0);
+    const mejorMesIdx = byMonth.reduce((best,m,i) => m.neto > byMonth[best].neto ? i : best, 0);
+
+    document.getElementById('stats-ventas-anio').textContent = totalVentas;
+    document.getElementById('stats-ingresos-anio').textContent = '$'+fmtNum(totalIngresos);
+    document.getElementById('stats-mejor-mes').textContent = totalVentas > 0 ? MESES[mejorMesIdx] : '—';
+    document.getElementById('stats-prods-vendidos').textContent = prodCount;
+
+    // Tabla
+    const tbody = document.getElementById('stats-tbody');
+    tbody.innerHTML = byMonth.map((m,i) => {
+      if (!m.count) return `<tr><td style="color:var(--text3)">${MESES[i]}</td><td style="color:var(--text3)">0</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>`;
+      const avg = m.neto/m.count;
+      return `<tr>
+        <td><strong>${MESES[i]}</strong></td>
+        <td>${m.count}</td>
+        <td>$${fmtNum(m.bruto)}</td>
+        <td style="color:var(--red)">-$${fmtNum(m.descuento)}</td>
+        <td style="color:var(--green)"><strong>$${fmtNum(m.neto)}</strong></td>
+        <td style="color:var(--amber)">$${fmtNum(avg)}</td>
+      </tr>`;
+    }).join('');
+
+    // Charts
+    renderCharts(byMonth);
+  } catch(e) {
+    toast('Error cargando estadísticas: ' + e.message, 'error');
+  }
+}
+
+function renderCharts(byMonth) {
+  const labels = MESES.map(m => m.substring(0,3));
+  const cVentasData = byMonth.map(m => m.count);
+  const cIngresosData = byMonth.map(m => Math.round(m.neto));
+
+  if (chartVentas) chartVentas.destroy();
+  if (chartIngresos) chartIngresos.destroy();
+
+  const isDark = true;
+  Chart.defaults.color = '#9da3c8';
+  Chart.defaults.borderColor = '#2e3248';
+
+  chartVentas = new Chart(document.getElementById('chartVentas'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Ventas',
+        data: cVentasData,
+        backgroundColor: 'rgba(108,99,255,0.6)',
+        borderColor: 'rgba(108,99,255,1)',
+        borderWidth: 1,
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+    }
+  });
+
+  chartIngresos = new Chart(document.getElementById('chartIngresos'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Ingresos ($)',
+        data: cIngresosData,
+        borderColor: '#00d68f',
+        backgroundColor: 'rgba(0,214,143,0.1)',
+        fill: true,
+        tension: 0.4,
+        pointRadius: 4,
+        pointBackgroundColor: '#00d68f'
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+}
+
+async function exportExcel() {
+  const year = parseInt(document.getElementById('stats-year').value) || new Date().getFullYear();
+  try {
+    const start = new Date(year, 0, 1).getTime();
+    const end = new Date(year, 11, 31, 23, 59, 59).getTime();
+    const data = await mongoRequest('find', 'facturas', {
+      filter: { 'fecha.$date.$numberLong': { $gte: start.toString(), $lte: end.toString() } },
+      limit: 2000
+    });
+    const facturas = data.documents || [];
+
+    const wb = XLSX.utils.book_new();
+
+    // Hoja 1: Detalle de facturas
+    const rows1 = [['N° Factura','Fecha','Cliente','Cédula','Teléfono','Correo','Items','Mano Obra','Descuento','Total']];
+    facturas.forEach(f => {
+      const fecha = new Date(parseInt(f.fecha?.$date?.$numberLong||0)).toLocaleDateString('es-CO');
+      const items = (f.items||[]).map(i=>`${i.nombre}(x${i.cantidad})`).join(', ');
+      rows1.push([f.numeroFactura, fecha, f.cliente?.nombre, f.cliente?.cedula, f.cliente?.telefono, f.cliente?.email||'', items, f.manoDeObra?.valor||0, f.descuento?.monto||0, f.total||0]);
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows1), 'Facturas');
+
+    // Hoja 2: Resumen mensual
+    const byMonth = Array.from({length:12}, () => ({ count:0, bruto:0, descuento:0, neto:0 }));
+    facturas.forEach(f => {
+      const m = new Date(parseInt(f.fecha?.$date?.$numberLong||0)).getMonth();
+      byMonth[m].count++;
+      byMonth[m].bruto += (f.subtotal||0)+(f.manoDeObra?.valor||0);
+      byMonth[m].descuento += f.descuento?.monto||0;
+      byMonth[m].neto += f.total||0;
+    });
+    const rows2 = [['Mes','N° Ventas','Ingresos Brutos','Descuentos','Ingresos Netos','Ticket Promedio']];
+    byMonth.forEach((m,i) => {
+      rows2.push([MESES[i], m.count, m.bruto, m.descuento, m.neto, m.count ? m.neto/m.count : 0]);
+    });
+    rows2.push(['TOTAL', facturas.length, byMonth.reduce((s,m)=>s+m.bruto,0), byMonth.reduce((s,m)=>s+m.descuento,0), byMonth.reduce((s,m)=>s+m.neto,0), '']);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows2), 'Resumen Mensual');
+
+    XLSX.writeFile(wb, `GestionPro_Estadisticas_${year}.xlsx`);
+    toast('✅ Excel exportado correctamente', 'success');
+  } catch(e) {
+    toast('Error exportando: ' + e.message, 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  UTILIDADES
+// ═══════════════════════════════════════════════════
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+  if (id === 'modal-producto') clearProductoForm();
+}
+
+function toast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show ' + (type||'');
+  setTimeout(() => el.className = '', 3500);
+}
+
+function fmtNum(n) {
+  if (isNaN(n) || n === null) return '0';
+  return new Intl.NumberFormat('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(n));
+}
+
+// ═══════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  loadConfig();
+
+  // Fecha del filtro de ventas = mes actual
+  const now = new Date();
+  document.getElementById('filter-month').value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+
+  // Año en estadísticas
+  document.getElementById('stats-year').value = now.getFullYear();
+
+  // Cerrar modal al hacer clic fuera
+  document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', e => {
+      if (e.target === overlay) overlay.classList.remove('open');
+    });
+  });
+});
+</script>
+</body>
+</html>
