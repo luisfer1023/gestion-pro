@@ -1457,11 +1457,17 @@ async function loadVentas() {
       const [y, m] = monthFilter.split('-').map(Number);
       const start = new Date(y, m-1, 1).getTime();
       const end = new Date(y, m, 0, 23, 59, 59).getTime();
-      filter = { 'fecha.$date.$numberLong': { $gte: start.toString(), $lte: end.toString() } };
+    filter = {
+      fecha: {
+        $gte: new Date(start),
+        $lte: new Date(end)
+  }
+};
+
     }
     const data = await mongoRequest('find', 'facturas', {
       filter,
-      sort: { 'fecha.$date.$numberLong': -1 },
+      sort: { fecha: -1 },
       limit: 200
     });
     const facturas = Array.isArray(data.documents) ? data.documents : [];
