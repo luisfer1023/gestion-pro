@@ -465,11 +465,128 @@
     .form-grid-2, .form-grid-3 { grid-template-columns: 1fr; }
     .config-grid { grid-template-columns: 1fr; }
   }
+
+  /* ─── LOGIN SCREEN ─── */
+  #login-screen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: var(--bg);
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+  }
+  #login-screen.hidden { display: none; }
+  .login-card {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-lg);
+    padding: 40px;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.4);
+  }
+  .login-logo { text-align: center; margin-bottom: 32px; }
+  .login-logo h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+  .login-logo h1 span { color: var(--accent); }
+  .login-logo p { font-size: 13px; color: var(--text3); margin-top: 4px; }
+  .login-title { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 20px; text-align: center; }
+  .login-form .form-group { margin-bottom: 14px; }
+  .login-btn { width: 100%; padding: 11px; font-size: 14px; margin-top: 6px; justify-content: center; }
+  .login-switch { text-align: center; margin-top: 16px; font-size: 12px; color: var(--text3); }
+  .login-switch a { color: var(--accent); cursor: pointer; text-decoration: none; font-weight: 500; }
+  .login-switch a:hover { text-decoration: underline; }
+  .login-error {
+    background: var(--red-bg);
+    border: 1px solid rgba(255,77,106,0.3);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    font-size: 12px;
+    color: var(--red);
+    margin-bottom: 14px;
+    display: none;
+  }
+  .login-error.show { display: block; }
+  .user-badge {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 20px;
+    border-top: 1px solid var(--border);
+    font-size: 12px; color: var(--text2);
+  }
+  .user-avatar {
+    width: 28px; height: 28px;
+    background: var(--accent-glow);
+    border: 1px solid var(--accent);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; color: var(--accent); flex-shrink: 0;
+  }
+  .user-info { flex: 1; min-width: 0; }
+  .user-info strong { display: block; color: var(--text); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .user-info span { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.7px; }
+  .btn-logout { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 14px; padding: 4px; border-radius: 4px; transition: color 0.15s; }
+  .btn-logout:hover { color: var(--red); }
+  .auth-only { display: none !important; }
+  body.is-admin .auth-only { display: inline-flex !important; }
 </style>
 </head>
 <body>
 
 <div id="toast"></div>
+
+<!-- ─── LOGIN SCREEN ─── -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <h1>Gestión<span>Pro</span></h1>
+      <p>Sistema de Gestión Empresarial</p>
+    </div>
+    <div id="form-login">
+      <div class="login-title">Iniciar Sesión</div>
+      <div class="login-error" id="login-error"></div>
+      <div class="login-form">
+        <div class="form-group">
+          <label>Usuario</label>
+          <input type="text" id="login-usuario" placeholder="Tu usuario" autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label>Contraseña</label>
+          <input type="password" id="login-password" placeholder="Tu contraseña" autocomplete="current-password"
+            onkeydown="if(event.key==='Enter') doLogin()">
+        </div>
+        <button class="btn btn-primary login-btn" onclick="doLogin()" id="btn-login">🔐 Ingresar</button>
+      </div>
+      <div class="login-switch" id="switch-to-register" style="display:none;">
+        ¿Primera vez? <a onclick="showRegister()">Crear administrador</a>
+      </div>
+    </div>
+    <div id="form-register" style="display:none;">
+      <div class="login-title">Crear Administrador</div>
+      <p style="font-size:12px;color:var(--text3);text-align:center;margin-bottom:16px;">
+        Solo se puede crear un administrador. Este será el único con acceso completo.
+      </p>
+      <div class="login-error" id="register-error"></div>
+      <div class="login-form">
+        <div class="form-group">
+          <label>Usuario</label>
+          <input type="text" id="reg-usuario" placeholder="Ej: admin" autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label>Contraseña (mínimo 6 caracteres)</label>
+          <input type="password" id="reg-password" placeholder="Contraseña segura" autocomplete="new-password">
+        </div>
+        <div class="form-group">
+          <label>Confirmar Contraseña</label>
+          <input type="password" id="reg-password2" placeholder="Repetir contraseña" autocomplete="new-password"
+            onkeydown="if(event.key==='Enter') doRegister()">
+        </div>
+        <button class="btn btn-primary login-btn" onclick="doRegister()" id="btn-register">✅ Crear Administrador</button>
+      </div>
+      <div class="login-switch"><a onclick="showLogin()">← Volver al login</a></div>
+    </div>
+  </div>
+</div>
 
 <!-- ─── SIDEBAR ─── -->
 <aside class="sidebar">
@@ -499,6 +616,14 @@
       <span id="dbStatus">Sin configurar</span>
     </div>
     <div>MongoDB Atlas</div>
+  </div>
+  <div class="user-badge" id="user-badge" style="display:none;">
+    <div class="user-avatar">👤</div>
+    <div class="user-info">
+      <strong id="user-name">Admin</strong>
+      <span>Administrador</span>
+    </div>
+    <button class="btn-logout" onclick="doLogout()" title="Cerrar sesión">⏻</button>
   </div>
 </aside>
 
@@ -602,7 +727,7 @@
       <div class="page-title">📦 Inventario</div>
       <div class="page-subtitle">Gestión de productos y stock</div>
     </div>
-    <button class="btn btn-primary" onclick="openModal('modal-producto')">+ Agregar Producto</button>
+    <button class="btn btn-primary auth-only" onclick="openModal('modal-producto')">+ Agregar Producto</button>
   </div>
 
   <div class="stats-grid">
@@ -666,7 +791,7 @@
       <div class="page-title">🧾 Ventas y Facturación</div>
       <div class="page-subtitle">Crear facturas y gestionar ventas</div>
     </div>
-    <button class="btn btn-primary" onclick="openModal('modal-factura')">+ Nueva Factura</button>
+    <button class="btn btn-primary auth-only" onclick="openModal('modal-factura')">+ Nueva Factura</button>
   </div>
 
   <div class="stats-grid">
@@ -1012,6 +1137,162 @@
 
 <script>
 // ═══════════════════════════════════════════════════
+//  AUTH — Login / Logout / Register
+// ═══════════════════════════════════════════════════
+let AUTH_TOKEN = null;
+
+function getBackendUrl() {
+  try {
+    const cfg = JSON.parse(localStorage.getItem('gestionpro_cfg') || '{}');
+    return (cfg.backendUrl || 'http://localhost:3001').replace(/\/$/, '');
+  } catch { return 'http://localhost:3001'; }
+}
+
+async function checkAuthStatus() {
+  // Verificar si ya tiene token guardado
+  const saved = localStorage.getItem('gestionpro_token');
+  if (saved) {
+    try {
+      const url = getBackendUrl();
+      const r = await fetch(`${url}/auth/verify`, {
+        headers: { 'Authorization': 'Bearer ' + saved }
+      });
+      if (r.ok) {
+        const data = await r.json();
+        AUTH_TOKEN = saved;
+        onLoginSuccess(data.user.usuario);
+        return;
+      }
+    } catch(e) {}
+    localStorage.removeItem('gestionpro_token');
+  }
+
+  // Ver si ya hay admin creado
+  try {
+    const url = getBackendUrl();
+    const r = await fetch(`${url}/auth/status`);
+    const data = await r.json();
+    if (!data.hasAdmin) {
+      document.getElementById('switch-to-register').style.display = 'block';
+    }
+  } catch(e) {}
+
+  document.getElementById('login-screen').classList.remove('hidden');
+}
+
+function showRegister() {
+  document.getElementById('form-login').style.display = 'none';
+  document.getElementById('form-register').style.display = 'block';
+  document.getElementById('register-error').classList.remove('show');
+}
+
+function showLogin() {
+  document.getElementById('form-register').style.display = 'none';
+  document.getElementById('form-login').style.display = 'block';
+  document.getElementById('login-error').classList.remove('show');
+}
+
+async function doLogin() {
+  const usuario = document.getElementById('login-usuario').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errorEl = document.getElementById('login-error');
+  const btn = document.getElementById('btn-login');
+
+  if (!usuario || !password) {
+    errorEl.textContent = 'Ingresa usuario y contraseña';
+    errorEl.classList.add('show'); return;
+  }
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Verificando...';
+  errorEl.classList.remove('show');
+
+  try {
+    const url = getBackendUrl();
+    const r = await fetch(`${url}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ usuario, password })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Error al iniciar sesión');
+    AUTH_TOKEN = data.token;
+    localStorage.setItem('gestionpro_token', AUTH_TOKEN);
+    onLoginSuccess(data.usuario);
+  } catch(e) {
+    errorEl.textContent = e.message;
+    errorEl.classList.add('show');
+    btn.disabled = false;
+    btn.innerHTML = '🔐 Ingresar';
+  }
+}
+
+async function doRegister() {
+  const usuario = document.getElementById('reg-usuario').value.trim();
+  const password = document.getElementById('reg-password').value;
+  const password2 = document.getElementById('reg-password2').value;
+  const errorEl = document.getElementById('register-error');
+  const btn = document.getElementById('btn-register');
+
+  if (!usuario || !password) {
+    errorEl.textContent = 'Completa todos los campos';
+    errorEl.classList.add('show'); return;
+  }
+  if (password !== password2) {
+    errorEl.textContent = 'Las contraseñas no coinciden';
+    errorEl.classList.add('show'); return;
+  }
+  if (password.length < 6) {
+    errorEl.textContent = 'La contraseña debe tener al menos 6 caracteres';
+    errorEl.classList.add('show'); return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Creando...';
+  errorEl.classList.remove('show');
+
+  try {
+    const url = getBackendUrl();
+    const r = await fetch(`${url}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ usuario, password })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Error al crear usuario');
+    toast('✅ Administrador creado. Ahora inicia sesión.', 'success');
+    showLogin();
+    document.getElementById('login-usuario').value = usuario;
+  } catch(e) {
+    errorEl.textContent = e.message;
+    errorEl.classList.add('show');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '✅ Crear Administrador';
+  }
+}
+
+function onLoginSuccess(usuario) {
+  document.getElementById('login-screen').classList.add('hidden');
+  document.body.classList.add('is-admin');
+  document.getElementById('user-badge').style.display = 'flex';
+  document.getElementById('user-name').textContent = usuario;
+}
+
+function doLogout() {
+  if (!confirm('¿Cerrar sesión?')) return;
+  AUTH_TOKEN = null;
+  localStorage.removeItem('gestionpro_token');
+  document.body.classList.remove('is-admin');
+  document.getElementById('user-badge').style.display = 'none';
+  document.getElementById('login-usuario').value = '';
+  document.getElementById('login-password').value = '';
+  document.getElementById('login-error').classList.remove('show');
+  document.getElementById('btn-login').disabled = false;
+  document.getElementById('btn-login').innerHTML = '🔐 Ingresar';
+  document.getElementById('login-screen').classList.remove('hidden');
+}
+
+// ═══════════════════════════════════════════════════
 //  CONFIGURACIÓN Y ESTADO GLOBAL
 // ═══════════════════════════════════════════════════
 let CFG = {};
@@ -1083,13 +1364,18 @@ async function testConnection() {
 // ═══════════════════════════════════════════════════
 async function mongoRequest(action, collection, body) {
   if (!CFG.backendUrl) throw new Error('Backend no configurado. Ve a Configuración y guarda la URL.');
+  if (!AUTH_TOKEN) throw new Error('No has iniciado sesión');
   const url = `${CFG.backendUrl}/api/${collection}/${action}`;
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + AUTH_TOKEN
+    },
     body: JSON.stringify(body || {})
   });
   const data = await res.json();
+  if (res.status === 401) { doLogout(); throw new Error('Sesión expirada. Por favor inicia sesión de nuevo.'); }
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
 }
@@ -1143,9 +1429,9 @@ function renderInventario(prods) {
       <td>${badge}</td>
       <td>
         <div style="display:flex;gap:6px;">
-          <button class="btn btn-secondary btn-sm" onclick="editProducto('${p._id.$oid}')">✏️</button>
-          <button class="btn btn-secondary btn-sm" onclick="openStockModal('${p._id.$oid}','${p.nombre.replace(/'/g,"\\'")}',${stock})">📦</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteProducto('${p._id.$oid}')">🗑️</button>
+          <button class="btn btn-secondary btn-sm auth-only" onclick="editProducto('${p._id.$oid}')">✏️</button>
+          <button class="btn btn-secondary btn-sm auth-only" onclick="openStockModal('${p._id.$oid}','${p.nombre.replace(/'/g,"\\'")}',${stock})">📦</button>
+          <button class="btn btn-danger btn-sm auth-only" onclick="deleteProducto('${p._id.$oid}')">🗑️</button>
         </div>
       </td>
     </tr>`;
@@ -1792,6 +2078,7 @@ function fmtNum(n) {
 // ═══════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', () => {
   loadConfig();
+  checkAuthStatus();
 
   // Fecha del filtro de ventas = mes actual
   const now = new Date();
