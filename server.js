@@ -175,6 +175,20 @@ app.get('/health', async (req, res) => {
   }
 });
 
+
+
+// ── Configuración pública de la app ─────────────────
+app.get('/config', async (req, res) => {
+  try {
+    const database = await connectDB();
+    const cfg = await database.collection('configuracion').findOne({});
+    if (!cfg) return res.json({});
+    res.json(cfg);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ══════════════════════════════════════════════════════
 //  API ROUTES (protegidas con JWT)
 // ══════════════════════════════════════════════════════
