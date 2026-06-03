@@ -296,17 +296,6 @@ function formatCOP(n) {
   return '$' + moneyCO.format(Math.round(num));
 }
 
-
-
-// ── Helpers para evitar desbordes de texto en PDF (emails, códigos, etc.) ──
-function wrapTokens(str) {
-  // Inserta espacios después de separadores típicos para permitir salto de línea
-  return String(str || '—').replace(/([@._\/-])/g, '$1 ');
-}
-function hardWrap(str, every = 18) {
-  // Último recurso: para cadenas muy largas sin separadores, inserta un espacio cada N caracteres
-  return String(str || '—').replace(new RegExp(`(.{${every}})`, 'g'), '$1 ');
-}
 async function generateInvoicePdfBuffer(factura, empresa = 'Mi Empresa') {
   return await new Promise((resolve, reject) => {
     try {
@@ -340,20 +329,20 @@ async function generateInvoicePdfBuffer(factura, empresa = 'Mi Empresa') {
 
       // Cliente box
       let y = 150;
-      doc.roundedRect(40, y, doc.page.width - 80, 86, 8).fill('#f0f0fa');
+      doc.roundedRect(40, y, doc.page.width - 80, 70, 8).fill('#f0f0fa');
       doc.fillColor('#333333');
       doc.fontSize(11).font('Helvetica-Bold').text('Cliente', 55, y + 12);
-      doc.fontSize(9).font('Helvetica').fillColor('#555555');
+      doc.fontSize(10).font('Helvetica').fillColor('#555555');
       const c = factura.cliente || {};
       const leftX = 55;
       const midX = doc.page.width / 2;
       doc.text('Nombre: ' + (c.nombre || '—'), leftX, y + 30, { width: midX - 70 });
       doc.text('Cédula/NIT: ' + (c.cedula || '—'), leftX, y + 46, { width: midX - 70 });
-      doc.text('Teléfono: ' + hardWrap(wrapTokens(c.telefono), 24), midX, y + 30, { width: doc.page.width - midX - 55 });
-      doc.text('Correo: ' + hardWrap(wrapTokens(c.email), 18), midX, y + 46, { width: doc.page.width - midX - 55 });
+      doc.text('Teléfono: ' + (c.telefono || '—'), midX, y + 30, { width: doc.page.width - midX - 55 });
+      doc.text('Correo: ' + (c.email || '—'), midX, y + 46, { width: doc.page.width - midX - 55 });
 
       // Tabla de items
- y += 111;
+      y += 95;
       const tableLeft = 40;
       const tableRight = doc.page.width - 40;
       const colDesc = tableLeft;
@@ -400,7 +389,7 @@ async function generateInvoicePdfBuffer(factura, empresa = 'Mi Empresa') {
       }
 
       rows.forEach((it) => {
-        const desc = hardWrap(wrapTokens(it.nombre || it.descripcion || 'Ítem'), 28);
+        const desc = String(it.nombre || it.descripcion || 'Ítem');
         const cant = Number(it.cantidad || 0);
         const precio = Number(it.precioUnit || it.precio || 0);
         const sub = (it.subtotal !== undefined) ? Number(it.subtotal || 0) : cant * precio;
@@ -410,10 +399,7 @@ async function generateInvoicePdfBuffer(factura, empresa = 'Mi Empresa') {
         ensureSpace(rowH + 6);
 
         doc.fillColor('#222222').font('Helvetica').fontSize(10);
-        // (wrapfix) Descripción puede ocupar múltiples líneas; bajamos un poco el tamaño
- doc.fontSize(9);
- doc.text(desc, colDesc + 10, y, { width: 280 });
- doc.fontSize(10);
+        doc.text(desc, colDesc + 10, y, { width: 280 });
         doc.text(String(cant), colCant, y, { width: 50, align: 'center' });
         doc.text(formatCOP(precio), colPrecio, y, { width: 90, align: 'right' });
         doc.text(formatCOP(sub), colSub, y, { width: 90, align: 'right' });
@@ -430,28 +416,39 @@ async function generateInvoicePdfBuffer(factura, empresa = 'Mi Empresa') {
       const descMonto = Number(factura.descuento?.monto || 0);
       const total = Number(factura.total || 0);
 
-      const totalsX = doc.page.width - 260;
-      doc.fillColor('#555555').font('Helvetica').fontSize(10);
-      doc.text('Subtotal:', totalsX, y + 10, { width: 120, align: 'left' });
-      doc.text(formatCOP(subtotal), totalsX + 120, y + 10, { width: 100, align: 'right' });
-      if (mo > 0) {
-        doc.text('Mano de obra:', totalsX, y + 26, { width: 120, align: 'left' });
-        doc.text(formatCOP(mo), totalsX + 120, y + 26, { width: 100, align: 'right' });
-      }
-      if (descMonto > 0) {
-        const label = 'Descuento' + (factura.descuento?.tipo === 'porcentaje' ? ` (${factura.descuento?.valor || 0}%)` : '') + ':';
-        doc.fillColor('#e24b4a');
-        doc.text(label, totalsX, y + 42, { width: 120, align: 'left' });
-        doc.text('-' + formatCOP(descMonto), totalsX + 120, y + 42, { width: 100, align: 'right' });
-        doc.fillColor('#555555');
-      }
+      
+const rightEdge = doc.page.width - 40; // respeta margen derecho
+const valueW = 120;
+const labelW = 140;
+const gap = 10;
+const valueX = rightEdge - valueW;
+const labelX = valueX - gap - labelW;
 
-      doc.strokeColor('#6c63ff').lineWidth(2);
-      doc.moveTo(totalsX, y + 62).lineTo(doc.page.width - 40, y + 62).stroke();
+doc.fillColor('#555555').font('Helvetica').fontSize(10);
+doc.text('Subtotal:', labelX, y + 10, { width: labelW, align: 'right' });
+doc.text(formatCOP(subtotal), valueX, y + 10, { width: valueW, align: 'right' });
 
-      doc.fillColor('#6c63ff').font('Helvetica-Bold').fontSize(13);
-      doc.text('TOTAL:', totalsX, y + 70, { width: 120, align: 'left' });
-      doc.text(formatCOP(total), totalsX + 120, y + 70, { width: 100, align: 'right' });
+if (mo > 0) {
+  doc.text('Mano de obra:', labelX, y + 26, { width: labelW, align: 'right' });
+  doc.text(formatCOP(mo), valueX, y + 26, { width: valueW, align: 'right' });
+}
+
+if (descMonto > 0) {
+  const label = 'Descuento' + (factura.descuento?.tipo === 'porcentaje' ? ` (${factura.descuento?.valor || 0}%)` : '') + ':';
+  doc.fillColor('#e24b4a');
+  doc.text(label, labelX, y + 42, { width: labelW, align: 'right' });
+  doc.text('-' + formatCOP(descMonto), valueX, y + 42, { width: valueW, align: 'right' });
+  doc.fillColor('#555555');
+}
+
+// Línea separadora (un poco antes del margen derecho)
+doc.strokeColor('#6c63ff').lineWidth(2);
+doc.moveTo(labelX, y + 62).lineTo(rightEdge, y + 62).stroke();
+
+doc.fillColor('#6c63ff').font('Helvetica-Bold').fontSize(13);
+doc.text('TOTAL:', labelX, y + 70, { width: labelW, align: 'right' });
+doc.text(formatCOP(total), valueX, y + 70, { width: valueW, align: 'right' });
+
 
       // Footer
       doc.fillColor('#999999').font('Helvetica').fontSize(9);
