@@ -2264,6 +2264,9 @@ async function enviarCorreo() {
 
       // Resumen en texto plano (fallback)
       items_texto: itemsRows,
+
+      // HTML completo de la factura para templates que usen {{invoice_html}}
+      invoice_html: buildInvoiceHTML(f),
     });
     toast('✅ Factura enviada a ' + email, 'success');
     btn.innerHTML = '✅ Enviado';
