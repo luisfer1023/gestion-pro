@@ -287,6 +287,169 @@ app.post('/api/:collection/aggregate', authRequired, async (req, res) => {
 // ══════════════════════════════════════════════════════
 
 // Guardar PDF base64 desde el frontend
+
+
+// ── PDF Helpers (generación server-side con PDFKit) ─────────────────
+const moneyCO = new Intl.NumberFormat('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+function formatCOP(n) {
+  const num = Number(n || 0);
+  return '$' + moneyCO.format(Math.round(num));
+}
+
+async function generateInvoicePdfBuffer(factura, empresa = 'Mi Empresa') {
+  return await new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ size: 'A4', margin: 40 });
+      const chunks = [];
+      doc.on('data', (d) => chunks.push(d));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+
+      // Header
+      doc.rect(0, 0, doc.page.width, 110).fill('#6c63ff');
+      doc.fillColor('#ffffff');
+      doc.fontSize(20).font('Helvetica-Bold').text(empresa, 40, 32, { width: doc.page.width - 80 });
+      doc.fontSize(11).font('Helvetica').fillColor('rgba(255,255,255,0.85)')
+        .text('Factura electrónica', 40, 58);
+
+      doc.fillColor('#ffffff');
+      doc.fontSize(12).font('Helvetica-Bold')
+        .text('FACTURA', doc.page.width - 160, 34, { width: 120, align: 'right' });
+      doc.fontSize(11).font('Helvetica')
+        .text(String(factura.numeroFactura || ''), doc.page.width - 240, 56, { width: 200, align: 'right' });
+
+      // Fecha
+      const fecha = factura.fecha instanceof Date
+        ? factura.fecha
+        : (factura.fecha && factura.fecha.$date && factura.fecha.$date.$numberLong)
+          ? new Date(parseInt(factura.fecha.$date.$numberLong))
+          : new Date();
+      doc.fillColor('#333333');
+      doc.fontSize(10).font('Helvetica')
+        .text('Fecha: ' + fecha.toLocaleDateString('es-CO') + ' ' + fecha.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }), 40, 125);
+
+      // Cliente box
+      let y = 150;
+      doc.roundedRect(40, y, doc.page.width - 80, 70, 8).fill('#f0f0fa');
+      doc.fillColor('#333333');
+      doc.fontSize(11).font('Helvetica-Bold').text('Cliente', 55, y + 12);
+      doc.fontSize(10).font('Helvetica').fillColor('#555555');
+      const c = factura.cliente || {};
+      const leftX = 55;
+      const midX = doc.page.width / 2;
+      doc.text('Nombre: ' + (c.nombre || '—'), leftX, y + 30, { width: midX - 70 });
+      doc.text('Cédula/NIT: ' + (c.cedula || '—'), leftX, y + 46, { width: midX - 70 });
+      doc.text('Teléfono: ' + (c.telefono || '—'), midX, y + 30, { width: doc.page.width - midX - 55 });
+      doc.text('Correo: ' + (c.email || '—'), midX, y + 46, { width: doc.page.width - midX - 55 });
+
+      // Tabla de items
+      y += 95;
+      const tableLeft = 40;
+      const tableRight = doc.page.width - 40;
+      const colDesc = tableLeft;
+      const colCant = tableLeft + 300;
+      const colPrecio = tableLeft + 360;
+      const colSub = tableLeft + 455;
+
+      const headerH = 22;
+      doc.fillColor('#1a1a2e');
+      doc.roundedRect(tableLeft, y, tableRight - tableLeft, headerH, 6).fill('#f0f0fa');
+      doc.fillColor('#555555').fontSize(9).font('Helvetica-Bold');
+      doc.text('DESCRIPCIÓN', colDesc + 10, y + 6, { width: 280 });
+      doc.text('CANT.', colCant, y + 6, { width: 50, align: 'center' });
+      doc.text('PRECIO', colPrecio, y + 6, { width: 90, align: 'right' });
+      doc.text('SUBTOTAL', colSub, y + 6, { width: 90, align: 'right' });
+      y += headerH + 6;
+
+      const items = Array.isArray(factura.items) ? factura.items : [];
+      const rows = [...items];
+      if (factura.manoDeObra && Number(factura.manoDeObra.valor || 0) > 0) {
+        rows.push({
+          nombre: factura.manoDeObra.descripcion || 'Mano de obra',
+          cantidad: 1,
+          precioUnit: Number(factura.manoDeObra.valor || 0),
+          subtotal: Number(factura.manoDeObra.valor || 0)
+        });
+      }
+
+      doc.font('Helvetica').fontSize(10).fillColor('#222222');
+
+      function ensureSpace(needed) {
+        if (y + needed > doc.page.height - 130) {
+          doc.addPage();
+          y = 40;
+          doc.roundedRect(tableLeft, y, tableRight - tableLeft, headerH, 6).fill('#f0f0fa');
+          doc.fillColor('#555555').fontSize(9).font('Helvetica-Bold');
+          doc.text('DESCRIPCIÓN', colDesc + 10, y + 6, { width: 280 });
+          doc.text('CANT.', colCant, y + 6, { width: 50, align: 'center' });
+          doc.text('PRECIO', colPrecio, y + 6, { width: 90, align: 'right' });
+          doc.text('SUBTOTAL', colSub, y + 6, { width: 90, align: 'right' });
+          y += headerH + 6;
+          doc.font('Helvetica').fontSize(10).fillColor('#222222');
+        }
+      }
+
+      rows.forEach((it) => {
+        const desc = String(it.nombre || it.descripcion || 'Ítem');
+        const cant = Number(it.cantidad || 0);
+        const precio = Number(it.precioUnit || it.precio || 0);
+        const sub = (it.subtotal !== undefined) ? Number(it.subtotal || 0) : cant * precio;
+
+        const descHeight = doc.heightOfString(desc, { width: 280 });
+        const rowH = Math.max(18, descHeight + 4);
+        ensureSpace(rowH + 6);
+
+        doc.fillColor('#222222').font('Helvetica').fontSize(10);
+        doc.text(desc, colDesc + 10, y, { width: 280 });
+        doc.text(String(cant), colCant, y, { width: 50, align: 'center' });
+        doc.text(formatCOP(precio), colPrecio, y, { width: 90, align: 'right' });
+        doc.text(formatCOP(sub), colSub, y, { width: 90, align: 'right' });
+
+        doc.strokeColor('#eeeeee').lineWidth(1);
+        doc.moveTo(tableLeft, y + rowH + 4).lineTo(tableRight, y + rowH + 4).stroke();
+        y += rowH + 10;
+      });
+
+      // Totales
+      ensureSpace(90);
+      const subtotal = Number(factura.subtotal || 0);
+      const mo = Number(factura.manoDeObra?.valor || 0);
+      const descMonto = Number(factura.descuento?.monto || 0);
+      const total = Number(factura.total || 0);
+
+      const totalsX = doc.page.width - 260;
+      doc.fillColor('#555555').font('Helvetica').fontSize(10);
+      doc.text('Subtotal:', totalsX, y + 10, { width: 120, align: 'left' });
+      doc.text(formatCOP(subtotal), totalsX + 120, y + 10, { width: 100, align: 'right' });
+      if (mo > 0) {
+        doc.text('Mano de obra:', totalsX, y + 26, { width: 120, align: 'left' });
+        doc.text(formatCOP(mo), totalsX + 120, y + 26, { width: 100, align: 'right' });
+      }
+      if (descMonto > 0) {
+        const label = 'Descuento' + (factura.descuento?.tipo === 'porcentaje' ? ` (${factura.descuento?.valor || 0}%)` : '') + ':';
+        doc.fillColor('#e24b4a');
+        doc.text(label, totalsX, y + 42, { width: 120, align: 'left' });
+        doc.text('-' + formatCOP(descMonto), totalsX + 120, y + 42, { width: 100, align: 'right' });
+        doc.fillColor('#555555');
+      }
+
+      doc.strokeColor('#6c63ff').lineWidth(2);
+      doc.moveTo(totalsX, y + 62).lineTo(doc.page.width - 40, y + 62).stroke();
+
+      doc.fillColor('#6c63ff').font('Helvetica-Bold').fontSize(13);
+      doc.text('TOTAL:', totalsX, y + 70, { width: 120, align: 'left' });
+      doc.text(formatCOP(total), totalsX + 120, y + 70, { width: 100, align: 'right' });
+
+      // Footer
+      doc.fillColor('#999999').font('Helvetica').fontSize(9);
+      doc.text('Gracias por su compra — ' + empresa, 40, doc.page.height - 60, { width: doc.page.width - 80, align: 'center' });
+
+      doc.end();
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
 app.post('/facturas/pdf', authRequired, async (req, res) => {
   try {
     const database = await connectDB();
