@@ -1288,6 +1288,7 @@
     <div class="modal-header">
       <span class="modal-title">Vista de Factura</span>
       <div style="display:flex; gap:8px;">
+        <button class="btn btn-secondary btn-sm" id="btn-descargar-pdf" onclick="descargarPDF()">📄 Descargar PDF</button>
         <button class="btn btn-green btn-sm" id="btn-enviar-correo" onclick="enviarCorreo()">📧 Enviar por Correo</button>
         <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-ver-factura')">✕</button>
       </div>
@@ -2136,11 +2137,6 @@ function verFactura(f) {
   currentInvoice = f;
   const html = buildInvoiceHTML(f);
   document.getElementById('invoice-preview-content').innerHTML = html;
-  // Resetear botones al abrir una nueva factura
-  const btnCorreo = document.getElementById('btn-enviar-correo');
-  const btnPdf = document.getElementById('btn-descargar-pdf');
-  if (btnCorreo) { btnCorreo.disabled = false; btnCorreo.innerHTML = '📧 Enviar por Correo'; }
-  if (btnPdf) { btnPdf.disabled = false; btnPdf.innerHTML = '📄 Descargar PDF'; }
   openModal('modal-ver-factura');
 }
 
