@@ -325,7 +325,7 @@ async function generateInvoicePdfBuffer(factura, empresa = 'Mi Empresa') {
           : new Date();
       doc.fillColor('#333333');
       doc.fontSize(10).font('Helvetica')
-        .text('Fecha: ' + fecha.toLocaleDateString('es-CO') + ' ' + fecha.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }), 40, 125);
+        .text('Fecha: ' + fecha.toLocaleDateString('es-CO', { timeZone: process.env.TZ || 'America/Bogota' }) + ' ' + fecha.toLocaleTimeString('es-CO', { timeZone: process.env.TZ || 'America/Bogota', hour: '2-digit', minute: '2-digit' }), 40, 125);
 
       // Cliente box
       let y = 150;
@@ -416,39 +416,28 @@ async function generateInvoicePdfBuffer(factura, empresa = 'Mi Empresa') {
       const descMonto = Number(factura.descuento?.monto || 0);
       const total = Number(factura.total || 0);
 
-      
-const rightEdge = doc.page.width - 40; // respeta margen derecho
-const valueW = 120;
-const labelW = 140;
-const gap = 10;
-const valueX = rightEdge - valueW;
-const labelX = valueX - gap - labelW;
+      const totalsX = doc.page.width - 260;
+      doc.fillColor('#555555').font('Helvetica').fontSize(10);
+      doc.text('Subtotal:', totalsX, y + 10, { width: 120, align: 'left' });
+      doc.text(formatCOP(subtotal), totalsX + 120, y + 10, { width: 100, align: 'right' });
+      if (mo > 0) {
+        doc.text('Mano de obra:', totalsX, y + 26, { width: 120, align: 'left' });
+        doc.text(formatCOP(mo), totalsX + 120, y + 26, { width: 100, align: 'right' });
+      }
+      if (descMonto > 0) {
+        const label = 'Descuento' + (factura.descuento?.tipo === 'porcentaje' ? ` (${factura.descuento?.valor || 0}%)` : '') + ':';
+        doc.fillColor('#e24b4a');
+        doc.text(label, totalsX, y + 42, { width: 120, align: 'left' });
+        doc.text('-' + formatCOP(descMonto), totalsX + 120, y + 42, { width: 100, align: 'right' });
+        doc.fillColor('#555555');
+      }
 
-doc.fillColor('#555555').font('Helvetica').fontSize(10);
-doc.text('Subtotal:', labelX, y + 10, { width: labelW, align: 'right' });
-doc.text(formatCOP(subtotal), valueX, y + 10, { width: valueW, align: 'right' });
+      doc.strokeColor('#6c63ff').lineWidth(2);
+      doc.moveTo(totalsX, y + 62).lineTo(doc.page.width - 40, y + 62).stroke();
 
-if (mo > 0) {
-  doc.text('Mano de obra:', labelX, y + 26, { width: labelW, align: 'right' });
-  doc.text(formatCOP(mo), valueX, y + 26, { width: valueW, align: 'right' });
-}
-
-if (descMonto > 0) {
-  const label = 'Descuento' + (factura.descuento?.tipo === 'porcentaje' ? ` (${factura.descuento?.valor || 0}%)` : '') + ':';
-  doc.fillColor('#e24b4a');
-  doc.text(label, labelX, y + 42, { width: labelW, align: 'right' });
-  doc.text('-' + formatCOP(descMonto), valueX, y + 42, { width: valueW, align: 'right' });
-  doc.fillColor('#555555');
-}
-
-// Línea separadora (un poco antes del margen derecho)
-doc.strokeColor('#6c63ff').lineWidth(2);
-doc.moveTo(labelX, y + 62).lineTo(rightEdge, y + 62).stroke();
-
-doc.fillColor('#6c63ff').font('Helvetica-Bold').fontSize(13);
-doc.text('TOTAL:', labelX, y + 70, { width: labelW, align: 'right' });
-doc.text(formatCOP(total), valueX, y + 70, { width: valueW, align: 'right' });
-
+      doc.fillColor('#6c63ff').font('Helvetica-Bold').fontSize(13);
+      doc.text('TOTAL:', totalsX, y + 70, { width: 120, align: 'left' });
+      doc.text(formatCOP(total), totalsX + 120, y + 70, { width: 100, align: 'right' });
 
       // Footer
       doc.fillColor('#999999').font('Helvetica').fontSize(9);
