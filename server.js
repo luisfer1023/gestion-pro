@@ -296,6 +296,17 @@ function formatCOP(n) {
   return '$' + moneyCO.format(Math.round(num));
 }
 
+
+
+// ── Helpers para evitar desbordes de texto en PDF (emails, códigos, etc.) ──
+function wrapTokens(str) {
+  // Inserta espacios después de separadores típicos para permitir salto de línea
+  return String(str || '—').replace(/([@._\/-])/g, '$1 ');
+}
+function hardWrap(str, every = 18) {
+  // Último recurso: para cadenas muy largas sin separadores, inserta un espacio cada N caracteres
+  return String(str || '—').replace(new RegExp(`(.{${every}})`, 'g'), '$1 ');
+}
 async function generateInvoicePdfBuffer(factura, empresa = 'Mi Empresa') {
   return await new Promise((resolve, reject) => {
     try {
@@ -329,20 +340,20 @@ async function generateInvoicePdfBuffer(factura, empresa = 'Mi Empresa') {
 
       // Cliente box
       let y = 150;
-      doc.roundedRect(40, y, doc.page.width - 80, 70, 8).fill('#f0f0fa');
+      doc.roundedRect(40, y, doc.page.width - 80, 86, 8).fill('#f0f0fa');
       doc.fillColor('#333333');
       doc.fontSize(11).font('Helvetica-Bold').text('Cliente', 55, y + 12);
-      doc.fontSize(10).font('Helvetica').fillColor('#555555');
+      doc.fontSize(9).font('Helvetica').fillColor('#555555');
       const c = factura.cliente || {};
       const leftX = 55;
       const midX = doc.page.width / 2;
       doc.text('Nombre: ' + (c.nombre || '—'), leftX, y + 30, { width: midX - 70 });
       doc.text('Cédula/NIT: ' + (c.cedula || '—'), leftX, y + 46, { width: midX - 70 });
-      doc.text('Teléfono: ' + (c.telefono || '—'), midX, y + 30, { width: doc.page.width - midX - 55 });
-      doc.text('Correo: ' + (c.email || '—'), midX, y + 46, { width: doc.page.width - midX - 55 });
+      doc.text('Teléfono: ' + hardWrap(wrapTokens(c.telefono), 24), midX, y + 30, { width: doc.page.width - midX - 55 });
+      doc.text('Correo: ' + hardWrap(wrapTokens(c.email), 18), midX, y + 46, { width: doc.page.width - midX - 55 });
 
       // Tabla de items
-      y += 95;
+ y += 111;
       const tableLeft = 40;
       const tableRight = doc.page.width - 40;
       const colDesc = tableLeft;
@@ -389,7 +400,7 @@ async function generateInvoicePdfBuffer(factura, empresa = 'Mi Empresa') {
       }
 
       rows.forEach((it) => {
-        const desc = String(it.nombre || it.descripcion || 'Ítem');
+        const desc = hardWrap(wrapTokens(it.nombre || it.descripcion || 'Ítem'), 28);
         const cant = Number(it.cantidad || 0);
         const precio = Number(it.precioUnit || it.precio || 0);
         const sub = (it.subtotal !== undefined) ? Number(it.subtotal || 0) : cant * precio;
@@ -399,7 +410,10 @@ async function generateInvoicePdfBuffer(factura, empresa = 'Mi Empresa') {
         ensureSpace(rowH + 6);
 
         doc.fillColor('#222222').font('Helvetica').fontSize(10);
-        doc.text(desc, colDesc + 10, y, { width: 280 });
+        // (wrapfix) Descripción puede ocupar múltiples líneas; bajamos un poco el tamaño
+ doc.fontSize(9);
+ doc.text(desc, colDesc + 10, y, { width: 280 });
+ doc.fontSize(10);
         doc.text(String(cant), colCant, y, { width: 50, align: 'center' });
         doc.text(formatCOP(precio), colPrecio, y, { width: 90, align: 'right' });
         doc.text(formatCOP(sub), colSub, y, { width: 90, align: 'right' });
