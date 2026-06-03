@@ -7,6 +7,8 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 
@@ -2137,6 +2139,7 @@ function verFactura(f) {
   currentInvoice = f;
   const html = buildInvoiceHTML(f);
   document.getElementById('invoice-preview-content').innerHTML = html;
+  resetFacturaModalButtons();
   openModal('modal-ver-factura');
 }
 
@@ -2275,6 +2278,147 @@ async function enviarCorreo() {
   }
 }
 
+
+
+// ═══════════════════════════════════════════════════
+// PDF — Descargar / Generar
+// ═══════════════════════════════════════════════════
+function resetFacturaModalButtons() {
+  const btnEmail = document.getElementById('btn-enviar-correo');
+  if (btnEmail) {
+    btnEmail.disabled = false;
+    btnEmail.innerHTML = '📧 Enviar por Correo';
+  }
+  const btnPdf = document.getElementById('btn-descargar-pdf');
+  if (btnPdf) {
+    btnPdf.disabled = false;
+    btnPdf.innerHTML = '📄 Descargar PDF';
+  }
+}
+
+function triggerBlobDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+function blobToDataURL(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function generatePdfBlobFromInvoiceElement() {
+  const target = document.querySelector('#invoice-preview-content .invoice-preview') || document.getElementById('invoice-preview-content');
+  if (!target) throw new Error('No se encontró la vista de la factura');
+
+  // Fallback si no cargaron las librerías
+  if (typeof html2canvas === 'undefined' || !window.jspdf || !window.jspdf.jsPDF) {
+    // Abre diálogo de impresión (el usuario puede "Guardar como PDF")
+    window.print();
+    throw new Error('No se cargaron las librerías de PDF. Usa Imprimir → Guardar como PDF o revisa tu conexión.');
+  }
+
+  // Render a canvas
+  const canvas = await html2canvas(target, {
+    scale: 2,
+    backgroundColor: '#ffffff',
+    useCORS: true,
+    logging: false
+  });
+
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF('p', 'pt', 'a4');
+
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+
+  const imgData = canvas.toDataURL('image/png');
+  const imgWidth = pageWidth;
+  const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+  let heightLeft = imgHeight;
+  let position = 0;
+
+  pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+  heightLeft -= pageHeight;
+
+  while (heightLeft > 0) {
+    position = heightLeft - imgHeight;
+    pdf.addPage();
+    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+  }
+
+  return pdf.output('blob');
+}
+
+async function descargarPDF() {
+  if (!currentInvoice) { toast('No hay factura seleccionada', 'error'); return; }
+  const f = currentInvoice;
+  const btn = document.getElementById('btn-descargar-pdf');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Preparando...';
+  }
+
+  const backend = (CFG && CFG.backendUrl) ? CFG.backendUrl : (typeof getBackendUrl === 'function' ? getBackendUrl() : '');
+  const safeNum = encodeURIComponent(f.numeroFactura || 'factura');
+  const existingUrl = backend ? `${backend}/facturas/pdf/${safeNum}` : null;
+
+  try {
+    // 1) Intentar descargar si ya existe en backend
+    if (existingUrl) {
+      const r = await fetch(existingUrl);
+      if (r.ok) {
+        const blob = await r.blob();
+        triggerBlobDownload(blob, `${f.numeroFactura}.pdf`);
+        toast('✅ PDF descargado', 'success');
+        return;
+      }
+    }
+
+    // 2) Generar PDF en el navegador
+    if (!backend) throw new Error('Backend no configurado');
+    const pdfBlob = await generatePdfBlobFromInvoiceElement();
+
+    // 3) Guardar copia en backend (para futuras descargas)
+    try {
+      const dataUrl = await blobToDataURL(pdfBlob);
+      const base64 = String(dataUrl).split(',')[1] || '';
+      if (base64) {
+        await fetch(`${backend}/facturas/pdf`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + AUTH_TOKEN
+          },
+          body: JSON.stringify({ numeroFactura: f.numeroFactura, pdfBase64: base64 })
+        });
+      }
+    } catch (e) {
+      // Si falla el guardado, igual descargamos local
+    }
+
+    triggerBlobDownload(pdfBlob, `${f.numeroFactura}.pdf`);
+    toast('✅ PDF generado y descargado', 'success');
+  } catch (e) {
+    toast('❌ Error al descargar PDF: ' + (e.message || e), 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '📄 Descargar PDF';
+    }
+  }
+}
 // ═══════════════════════════════════════════════════
 //  ESTADÍSTICAS
 // ═══════════════════════════════════════════════════
