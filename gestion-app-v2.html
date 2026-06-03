@@ -462,7 +462,6 @@
      RESPONSIVE — Mobile First
   ══════════════════════════════════════════════ */
 
-  /* ── Hamburger button (solo móvil) ── */
   .hamburger {
     display: none;
     position: fixed;
@@ -481,7 +480,6 @@
   }
   .hamburger:hover { background: var(--bg3); }
 
-  /* ── Overlay oscuro detrás del sidebar en móvil ── */
   .sidebar-overlay {
     display: none;
     position: fixed;
@@ -491,16 +489,13 @@
   }
   .sidebar-overlay.open { display: block; }
 
-  /* ── Tablet (≤900px) ── */
   @media (max-width: 900px) {
     .sidebar { width: 200px; }
     .main { margin-left: 200px; padding: 20px; }
     .config-grid { grid-template-columns: 1fr; }
   }
 
-  /* ── Mobile (≤640px) ── */
   @media (max-width: 640px) {
-    /* Sidebar se convierte en drawer lateral */
     .hamburger { display: flex; }
 
     .sidebar {
@@ -512,14 +507,12 @@
     }
     .sidebar.open { transform: translateX(0); }
 
-    /* Main ocupa todo el ancho */
     .main {
       margin-left: 0;
       padding: 64px 14px 14px;
       min-height: 100vh;
     }
 
-    /* Page header se apila */
     .page-header {
       flex-direction: column;
       align-items: flex-start;
@@ -528,7 +521,6 @@
     }
     .page-title { font-size: 18px; }
 
-    /* Stats grid: 2 columnas en móvil */
     .stats-grid {
       grid-template-columns: 1fr 1fr;
       gap: 10px;
@@ -536,10 +528,8 @@
     .stat-card { padding: 14px; }
     .stat-card .value { font-size: 20px; }
 
-    /* Formularios: siempre 1 columna */
     .form-grid-2, .form-grid-3, .config-grid { grid-template-columns: 1fr !important; }
 
-    /* Panels */
     .panel { padding: 14px; }
     .panel-header {
       flex-direction: column;
@@ -550,7 +540,6 @@
     .panel-header input[type="text"],
     .panel-header input[type="month"] { width: 100% !important; }
 
-    /* Modales full-screen en móvil */
     .modal-overlay { padding: 0; align-items: flex-end; }
     .modal {
       max-width: 100%;
@@ -560,58 +549,30 @@
       padding: 20px 16px;
     }
 
-    /* Items de factura apilados */
-    .item-row {
-      grid-template-columns: 1fr 60px;
-      grid-template-rows: auto auto;
-      gap: 6px;
-    }
-    .item-row > *:nth-child(3),
-    .item-row > *:nth-child(4) { font-size: 12px; }
+    .item-row { grid-template-columns: 1fr 60px; grid-template-rows: auto auto; gap: 6px; }
     .item-row.header-row { display: none; }
 
-    /* Gráficas de estadísticas: columna única */
-    #page-estadisticas > div[style*="grid-template-columns: 2fr 1fr"] {
-      display: flex !important;
-      flex-direction: column !important;
-    }
+    .charts-grid { grid-template-columns: 1fr !important; }
+    .chart-container { height: 200px; }
+    .factura-extra-grid { grid-template-columns: 1fr !important; }
 
-    /* Tablas: scroll horizontal + texto más pequeño */
     td, th { padding: 8px 10px; font-size: 12px; }
 
-    /* Toast más pequeño */
     #toast { left: 12px; right: 12px; bottom: 12px; max-width: none; font-size: 12px; }
 
-    /* Login card */
     .login-card { padding: 28px 20px; margin: 12px; max-width: 100%; }
-
-    /* Config banner */
     .config-banner { flex-direction: column; gap: 8px; }
 
-    /* Botones en page-header: ancho completo */
     .page-header > .btn,
     .page-header > button { width: 100%; justify-content: center; }
 
-    /* Estadísticas: selector año y botón en fila */
-    #page-estadisticas .page-header > div:last-child {
-      width: 100%;
-      display: flex;
-      gap: 8px;
-    }
+    #page-estadisticas .page-header > div:last-child { width: 100%; display: flex; gap: 8px; }
     #page-estadisticas .page-header > div:last-child select { flex: 1; }
     #page-estadisticas .page-header > div:last-child button { flex: 2; }
 
-    /* Factura preview más compacta */
     .invoice-preview { padding: 18px 14px; }
     .invoice-header { flex-direction: column; gap: 12px; }
     .inv-total-row { gap: 20px; font-size: 12px; }
-
-    /* Charts en columna única */
-    .charts-grid { grid-template-columns: 1fr !important; }
-    .chart-container { height: 200px; }
-
-    /* Mano de obra y descuento: apilados */
-    .factura-extra-grid { grid-template-columns: 1fr !important; }
   }
 
   /* ─── LOGIN SCREEN ─── */
@@ -1047,7 +1008,7 @@
     </div>
   </div>
 
-  <div style="display:grid; grid-template-columns: 2fr 1fr; gap:20px; margin-bottom:20px;" class="charts-grid">
+  <div class="charts-grid" style="display:grid; grid-template-columns: 2fr 1fr; gap:20px; margin-bottom:20px;">
     <div class="panel">
       <div class="panel-header"><span class="panel-title">Ventas Mensuales</span></div>
       <div class="chart-container">
@@ -1753,7 +1714,7 @@ function showPage(page) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
   event.currentTarget.classList.add('active');
-  closeSidebar(); // cierra el drawer en móvil
+  closeSidebar();
   if (page === 'inventario') loadInventario();
   if (page === 'ventas') loadVentas();
   if (page === 'estadisticas') loadStats();
@@ -2227,26 +2188,87 @@ function buildInvoiceHTML(f) {
 
 async function enviarCorreo() {
   if (!currentInvoice) return;
-  const email = currentInvoice.cliente?.email;
+  const f = currentInvoice;
+  const email = f.cliente?.email;
   if (!email) { toast('La factura no tiene correo del cliente', 'error'); return; }
   if (!CFG.emailService || !CFG.emailTemplate || !CFG.emailPubKey) {
-    toast('Configura EmailJS primero', 'error'); return;
+    toast('Configura EmailJS primero en ⚙️ Configuración', 'error'); return;
   }
+
   const btn = document.getElementById('btn-enviar-correo');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Enviando...';
+
+  // Construir tabla de items como texto plano para el template
+  const fecha = new Date(parseInt(f.fecha?.$date?.$numberLong || Date.now()));
+  const empresa = CFG.empresa || 'Mi Empresa';
+
+  // Filas de items formateadas
+  const itemsRows = (f.items || []).map(i =>
+    i.nombre + ' (x' + i.cantidad + ') — $' + fmtNum(i.subtotal)
+  ).join('\n');
+
+  // Construir filas HTML de la tabla de productos para el template
+  const itemsTableRows = (f.items || []).map(i => `
+    <tr>
+      <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:14px;">${i.nombre}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:14px;text-align:center;">${i.cantidad}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:14px;text-align:right;">$${fmtNum(i.precioUnit)}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:14px;text-align:right;font-weight:600;">$${fmtNum(i.subtotal)}</td>
+    </tr>`).join('');
+
+  const moRow = f.manoDeObra?.valor ? `
+    <tr>
+      <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:14px;">${f.manoDeObra.descripcion || 'Mano de obra'}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:14px;text-align:center;">1</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:14px;text-align:right;">$${fmtNum(f.manoDeObra.valor)}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:14px;text-align:right;font-weight:600;">$${fmtNum(f.manoDeObra.valor)}</td>
+    </tr>` : '';
+
+  const descRow = f.descuento?.monto ? `
+    <tr>
+      <td colspan="3" style="padding:10px 12px;font-size:14px;text-align:right;color:#e24b4a;">Descuento${f.descuento.tipo === 'porcentaje' ? ' (' + f.descuento.valor + '%)' : ''}:</td>
+      <td style="padding:10px 12px;font-size:14px;text-align:right;color:#e24b4a;font-weight:600;">-$${fmtNum(f.descuento.monto)}</td>
+    </tr>` : '';
+
+  const moTotalRow = f.manoDeObra?.valor ? `
+    <tr>
+      <td colspan="3" style="padding:6px 12px;font-size:14px;text-align:right;color:#555;">Mano de obra:</td>
+      <td style="padding:6px 12px;font-size:14px;text-align:right;">$${fmtNum(f.manoDeObra.valor)}</td>
+    </tr>` : '';
+
   try {
     await emailjs.send(CFG.emailService, CFG.emailTemplate, {
-      to_email: email,
-      to_name: currentInvoice.cliente?.nombre,
-      invoice_number: currentInvoice.numeroFactura,
-      invoice_html: buildInvoiceHTML(currentInvoice),
-      empresa: CFG.empresa || 'Mi Empresa'
+      // Datos básicos
+      to_email:       email,
+      to_name:        f.cliente?.nombre || '',
+      invoice_number: f.numeroFactura   || '',
+      empresa:        empresa,
+      fecha:          fecha.toLocaleDateString('es-CO'),
+
+      // Datos del cliente
+      cliente_nombre:   f.cliente?.nombre   || '',
+      cliente_cedula:   f.cliente?.cedula   || '',
+      cliente_telefono: f.cliente?.telefono || '',
+      cliente_email:    f.cliente?.email    || '',
+
+      // Filas HTML de la tabla (ya con estilos inline)
+      items_rows:    itemsTableRows + moRow,
+      descuento_row: descRow,
+      subtotal_row:  moTotalRow,
+
+      // Totales
+      subtotal:  '$' + fmtNum(f.subtotal  || 0),
+      descuento: '$' + fmtNum(f.descuento?.monto || 0),
+      total:     '$' + fmtNum(f.total     || 0),
+
+      // Resumen en texto plano (fallback)
+      items_texto: itemsRows,
     });
     toast('✅ Factura enviada a ' + email, 'success');
     btn.innerHTML = '✅ Enviado';
   } catch(e) {
-    toast('Error al enviar: ' + (e.text || e.message), 'error');
+    toast('Error al enviar: ' + (e.text || e.message || JSON.stringify(e)), 'error');
     btn.disabled = false;
     btn.innerHTML = '📧 Enviar por Correo';
   }
