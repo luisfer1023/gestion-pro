@@ -338,7 +338,21 @@
     font-size: 13px;
     line-height: 1.6;
   }
-  .invoice-preview h2 { font-size: 22px; font-weight: 700; color: #1a1a2e; }
+  
+/* FIX: En la vista de factura (fondo blanco), el tema oscuro aplica color claro a td por defecto.
+   Forzamos texto oscuro dentro del preview para que se lean bien los productos. */
+.invoice-preview { color: #1a1a2e; }
+.invoice-preview table,
+.invoice-preview td,
+.invoice-preview th,
+.invoice-preview p,
+.invoice-preview span,
+.invoice-preview div { color: #1a1a2e !important; }
+.invoice-preview .inv-table th { color: #555 !important; }
+.invoice-preview .inv-total-row.grand,
+.invoice-preview .inv-total-row.grand span { color: #6c63ff !important; }
+
+.invoice-preview h2 { font-size: 22px; font-weight: 700; color: #1a1a2e; }
   .invoice-preview .inv-meta { color: #555; margin-top: 4px; font-size: 12px; }
   .invoice-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; }
   .inv-badge {
