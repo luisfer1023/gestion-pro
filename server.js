@@ -299,7 +299,7 @@ function formatCOP(n) {
 async function generateInvoicePdfBuffer(factura, empresa = 'Mi Empresa') {
   return await new Promise((resolve, reject) => {
     try {
-      const doc = new PDFDocument({ size: 'A4', margin: 40 });
+      const doc = new PDFDocument({ size: 'A4', margin: 50 });
       const chunks = [];
       doc.on('data', (d) => chunks.push(d));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
