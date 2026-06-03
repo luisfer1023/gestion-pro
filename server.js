@@ -280,6 +280,42 @@ app.post('/api/:collection/aggregate', authRequired, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+
+// ══════════════════════════════════════════════════════
+//  PDF — Guardar y servir facturas en base64
+// ══════════════════════════════════════════════════════
+
+// Guardar PDF (llamado desde el frontend tras generar el PDF)
+app.post('/facturas/pdf', authRequired, async (req, res) => {
+  try {
+    const database = await connectDB();
+    const { numeroFactura, pdfBase64 } = req.body;
+    if (!numeroFactura || !pdfBase64) return res.status(400).json({ error: 'Faltan datos' });
+
+    await database.collection('facturas_pdf').updateOne(
+      { numeroFactura },
+      { $set: { numeroFactura, pdfBase64, createdAt: new Date() } },
+      { upsert: true }
+    );
+    const url = `${req.protocol}://${req.get('host')}/facturas/pdf/${numeroFactura}`;
+    res.json({ ok: true, url });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Servir PDF público (sin auth, para que el cliente pueda descargarlo)
+app.get('/facturas/pdf/:numeroFactura', async (req, res) => {
+  try {
+    const database = await connectDB();
+    const doc = await database.collection('facturas_pdf').findOne({ numeroFactura: req.params.numeroFactura });
+    if (!doc) return res.status(404).send('Factura no encontrada');
+
+    const buffer = Buffer.from(doc.pdfBase64, 'base64');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${req.params.numeroFactura}.pdf"`);
+    res.send(buffer);
+  } catch(e) { res.status(500).send('Error: ' + e.message); }
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 GestiónPro corriendo en http://localhost:${PORT}`);
 });
