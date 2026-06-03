@@ -2247,6 +2247,9 @@ async function enviarCorreo() {
       to_email:       email,
       to_name:        f.cliente?.nombre || '',
       invoice_number: f.numeroFactura   || '',
+    // URL pública para descargar el PDF
+    pdf_url: (CFG.backendUrl || '') + '/facturas/pdf/' + encodeURIComponent(f.numeroFactura || ''),
+
       empresa:        empresa,
       fecha:          fecha.toLocaleDateString('es-CO'),
 
@@ -2268,7 +2271,8 @@ async function enviarCorreo() {
 
       // Resumen en texto plano (fallback)
       items_texto: itemsRows,
-    });
+    
+  });
     toast('✅ Factura enviada a ' + email, 'success');
     btn.innerHTML = '✅ Enviado';
   } catch(e) {
@@ -2322,12 +2326,10 @@ async function generatePdfBlobFromInvoiceElement() {
 
   // Fallback si no cargaron las librerías
   if (typeof html2canvas === 'undefined' || !window.jspdf || !window.jspdf.jsPDF) {
-    // Abre diálogo de impresión (el usuario puede "Guardar como PDF")
     window.print();
     throw new Error('No se cargaron las librerías de PDF. Usa Imprimir → Guardar como PDF o revisa tu conexión.');
   }
 
-  // Render a canvas
   const canvas = await html2canvas(target, {
     scale: 2,
     backgroundColor: '#ffffff',
