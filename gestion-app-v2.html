@@ -7,6 +7,8 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 
@@ -1288,6 +1290,7 @@
     <div class="modal-header">
       <span class="modal-title">Vista de Factura</span>
       <div style="display:flex; gap:8px;">
+        <button class="btn btn-secondary btn-sm" id="btn-descargar-pdf" onclick="descargarPDF()">📄 Descargar PDF</button>
         <button class="btn btn-green btn-sm" id="btn-enviar-correo" onclick="enviarCorreo()">📧 Enviar por Correo</button>
         <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-ver-factura')">✕</button>
       </div>
@@ -2186,6 +2189,84 @@ function buildInvoiceHTML(f) {
   </div>`;
 }
 
+
+// ═══════════════════════════════════════════════════
+//  PDF — Generar, descargar y subir al backend
+// ═══════════════════════════════════════════════════
+
+async function generatePDF(factura) {
+  const { jsPDF } = window.jspdf;
+
+  // Crear contenedor temporal con el HTML de la factura
+  const container = document.createElement('div');
+  container.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;background:#fff;padding:0;';
+  container.innerHTML = buildInvoiceHTML(factura);
+  document.body.appendChild(container);
+
+  // Esperar que carguen las fuentes
+  await new Promise(r => setTimeout(r, 300));
+
+  const canvas = await html2canvas(container, {
+    scale: 2,
+    useCORS: true,
+    backgroundColor: '#ffffff',
+    width: 794,
+    logging: false
+  });
+
+  document.body.removeChild(container);
+
+  const imgData = canvas.toDataURL('image/png');
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const imgH = (canvas.height * pageW) / canvas.width;
+
+  let y = 0;
+  while (y < imgH) {
+    if (y > 0) pdf.addPage();
+    pdf.addImage(imgData, 'PNG', 0, -y, pageW, imgH);
+    y += pageH;
+  }
+
+  return pdf;
+}
+
+async function descargarPDF() {
+  if (!currentInvoice) return;
+  const btn = document.getElementById('btn-descargar-pdf');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Generando...';
+  try {
+    const pdf = await generatePDF(currentInvoice);
+    pdf.save(`${currentInvoice.numeroFactura}.pdf`);
+    btn.innerHTML = '✅ Descargado';
+    setTimeout(() => { btn.disabled = false; btn.innerHTML = '📄 Descargar PDF'; }, 2000);
+  } catch(e) {
+    toast('Error generando PDF: ' + e.message, 'error');
+    btn.disabled = false;
+    btn.innerHTML = '📄 Descargar PDF';
+  }
+}
+
+async function subirPDF(factura) {
+  try {
+    const pdf = await generatePDF(factura);
+    const pdfBase64 = pdf.output('datauristring').split(',')[1];
+    const r = await fetch(`${CFG.backendUrl}/facturas/pdf`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + AUTH_TOKEN },
+      body: JSON.stringify({ numeroFactura: factura.numeroFactura, pdfBase64 })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error);
+    return data.url;
+  } catch(e) {
+    console.error('Error subiendo PDF:', e);
+    return null;
+  }
+}
+
 async function enviarCorreo() {
   if (!currentInvoice) return;
   const f = currentInvoice;
@@ -2197,81 +2278,44 @@ async function enviarCorreo() {
 
   const btn = document.getElementById('btn-enviar-correo');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Enviando...';
-
-  // Construir tabla de items como texto plano para el template
-  const fecha = new Date(parseInt(f.fecha?.$date?.$numberLong || Date.now()));
-  const empresa = CFG.empresa || 'Mi Empresa';
-
-  // Filas de items formateadas
-  const itemsRows = (f.items || []).map(i =>
-    i.nombre + ' (x' + i.cantidad + ') — $' + fmtNum(i.subtotal)
-  ).join('\n');
-
-  // Construir filas HTML de la tabla de productos para el template
-  const itemsTableRows = (f.items || []).map(i => `
-    <tr>
-      <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:14px;">${i.nombre}</td>
-      <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:14px;text-align:center;">${i.cantidad}</td>
-      <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:14px;text-align:right;">$${fmtNum(i.precioUnit)}</td>
-      <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:14px;text-align:right;font-weight:600;">$${fmtNum(i.subtotal)}</td>
-    </tr>`).join('');
-
-  const moRow = f.manoDeObra?.valor ? `
-    <tr>
-      <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:14px;">${f.manoDeObra.descripcion || 'Mano de obra'}</td>
-      <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:14px;text-align:center;">1</td>
-      <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:14px;text-align:right;">$${fmtNum(f.manoDeObra.valor)}</td>
-      <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:14px;text-align:right;font-weight:600;">$${fmtNum(f.manoDeObra.valor)}</td>
-    </tr>` : '';
-
-  const descRow = f.descuento?.monto ? `
-    <tr>
-      <td colspan="3" style="padding:10px 12px;font-size:14px;text-align:right;color:#e24b4a;">Descuento${f.descuento.tipo === 'porcentaje' ? ' (' + f.descuento.valor + '%)' : ''}:</td>
-      <td style="padding:10px 12px;font-size:14px;text-align:right;color:#e24b4a;font-weight:600;">-$${fmtNum(f.descuento.monto)}</td>
-    </tr>` : '';
-
-  const moTotalRow = f.manoDeObra?.valor ? `
-    <tr>
-      <td colspan="3" style="padding:6px 12px;font-size:14px;text-align:right;color:#555;">Mano de obra:</td>
-      <td style="padding:6px 12px;font-size:14px;text-align:right;">$${fmtNum(f.manoDeObra.valor)}</td>
-    </tr>` : '';
+  btn.innerHTML = '<span class="spinner"></span> Generando PDF...';
 
   try {
+    const empresa = CFG.empresa || 'Mi Empresa';
+    const fecha = new Date(parseInt(f.fecha?.$date?.$numberLong || Date.now()));
+
+    // 1. Generar PDF y subirlo al backend
+    btn.innerHTML = '<span class="spinner"></span> Subiendo PDF...';
+    const pdfUrl = await subirPDF(f);
+
+    // 2. Construir link de descarga para el correo
+    const linkDescarga = pdfUrl
+      ? `<a href="${pdfUrl}" style="display:inline-block;margin-top:16px;padding:12px 28px;background:#6c63ff;color:#fff;text-decoration:none;border-radius:8px;font-weight:700;font-size:14px;">📄 Descargar mi Factura PDF</a>`
+      : '';
+
+    btn.innerHTML = '<span class="spinner"></span> Enviando correo...';
+
+    // 3. Enviar correo con el link
     await emailjs.send(CFG.emailService, CFG.emailTemplate, {
-      // Datos básicos
       to_email:       email,
       to_name:        f.cliente?.nombre || '',
       invoice_number: f.numeroFactura   || '',
       empresa:        empresa,
       fecha:          fecha.toLocaleDateString('es-CO'),
-
-      // Datos del cliente
       cliente_nombre:   f.cliente?.nombre   || '',
       cliente_cedula:   f.cliente?.cedula   || '',
       cliente_telefono: f.cliente?.telefono || '',
-      cliente_email:    f.cliente?.email    || '',
-
-      // Filas HTML de la tabla (ya con estilos inline)
-      items_rows:    itemsTableRows + moRow,
-      descuento_row: descRow,
-      subtotal_row:  moTotalRow,
-
-      // Totales
       subtotal:  '$' + fmtNum(f.subtotal  || 0),
-      descuento: '$' + fmtNum(f.descuento?.monto || 0),
       total:     '$' + fmtNum(f.total     || 0),
-
-      // Resumen en texto plano (fallback)
-      items_texto: itemsRows,
-
-      // HTML completo de la factura para templates que usen {{invoice_html}}
-      invoice_html: buildInvoiceHTML(f),
+      pdf_url:   pdfUrl || '',
+      link_descarga: linkDescarga,
+      invoice_html: linkDescarga || 'Tu factura está lista. Número: ' + f.numeroFactura,
     });
-    toast('✅ Factura enviada a ' + email, 'success');
+
+    toast('✅ Correo enviado a ' + email, 'success');
     btn.innerHTML = '✅ Enviado';
   } catch(e) {
-    toast('Error al enviar: ' + (e.text || e.message || JSON.stringify(e)), 'error');
+    toast('Error: ' + (e.text || e.message || JSON.stringify(e)), 'error');
     btn.disabled = false;
     btn.innerHTML = '📧 Enviar por Correo';
   }
