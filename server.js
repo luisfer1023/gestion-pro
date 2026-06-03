@@ -18,7 +18,7 @@ app.use(cors({
 
 app.options('*', cors()); // ✅ preflight explícito (móvil-safe)
 
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname)));
 
 app.get('/', (req, res) => {
@@ -282,10 +282,10 @@ app.post('/api/:collection/aggregate', authRequired, async (req, res) => {
 
 
 // ══════════════════════════════════════════════════════
-//  PDF — Guardar y servir facturas en base64
+//  PDF — Guardar y servir facturas
 // ══════════════════════════════════════════════════════
 
-// Guardar PDF (llamado desde el frontend tras generar el PDF)
+// Guardar PDF base64 desde el frontend
 app.post('/facturas/pdf', authRequired, async (req, res) => {
   try {
     const database = await connectDB();
@@ -302,18 +302,18 @@ app.post('/facturas/pdf', authRequired, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// Servir PDF público (sin auth, para que el cliente pueda descargarlo)
+// Servir PDF público (sin auth)
 app.get('/facturas/pdf/:numeroFactura', async (req, res) => {
   try {
     const database = await connectDB();
     const doc = await database.collection('facturas_pdf').findOne({ numeroFactura: req.params.numeroFactura });
-    if (!doc) return res.status(404).send('Factura no encontrada');
+    if (!doc) return res.status(404).json({ error: 'Factura no encontrada' });
 
     const buffer = Buffer.from(doc.pdfBase64, 'base64');
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${req.params.numeroFactura}.pdf"`);
     res.send(buffer);
-  } catch(e) { res.status(500).send('Error: ' + e.message); }
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.listen(PORT, () => {
