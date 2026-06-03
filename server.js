@@ -6,6 +6,7 @@ const bcrypt  = require('bcryptjs');
 const jwt     = require('jsonwebtoken');
 const { MongoClient, ObjectId } = require('mongodb');
 
+const PDFDocument = require('pdfkit');
 const app  = express();
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'gestionpro_secret_2024';
@@ -302,19 +303,77 @@ app.post('/facturas/pdf', authRequired, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// Generar PDF server-side (PDFKit) y guardarlo en MongoDB — devuelve URL pública
+app.post('/facturas/pdf/generate', authRequired, async (req, res) => {
+  try {
+    const database = await connectDB();
+    const { numeroFactura } = req.body || {};
+    if (!numeroFactura) return res.status(400).json({ error: 'numeroFactura requerido' });
+
+    const factura = await database.collection('facturas').findOne({ numeroFactura });
+    if (!factura) return res.status(404).json({ error: 'Factura no encontrada' });
+
+    const cfg = await database.collection('configuracion').findOne({});
+    const empresa = (cfg && cfg.empresa) ? cfg.empresa : 'Mi Empresa';
+
+    const buffer = await generateInvoicePdfBuffer(factura, empresa);
+    const pdfBase64 = buffer.toString('base64');
+
+    await database.collection('facturas_pdf').updateOne(
+      { numeroFactura },
+      { $set: { numeroFactura, pdfBase64, createdAt: new Date() } },
+      { upsert: true }
+    );
+
+    const url = `${req.protocol}://${req.get('host')}/facturas/pdf/${encodeURIComponent(numeroFactura)}`;
+    res.json({ ok: true, url });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+
 // Servir PDF público (sin auth)
+
+// Servir PDF público (sin auth) — si no existe, se genera automáticamente desde la factura
 app.get('/facturas/pdf/:numeroFactura', async (req, res) => {
   try {
     const database = await connectDB();
-    const doc = await database.collection('facturas_pdf').findOne({ numeroFactura: req.params.numeroFactura });
-    if (!doc) return res.status(404).json({ error: 'Factura no encontrada' });
+    const numeroFactura = req.params.numeroFactura;
 
-    const buffer = Buffer.from(doc.pdfBase64, 'base64');
+    // 1) Buscar en caché (colección facturas_pdf)
+    const cached = await database.collection('facturas_pdf').findOne({ numeroFactura });
+    if (cached && cached.pdfBase64) {
+      const buffer = Buffer.from(cached.pdfBase64, 'base64');
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${numeroFactura}.pdf"`);
+      return res.send(buffer);
+    }
+
+    // 2) Si no existe, buscar la factura y generarlo
+    const factura = await database.collection('facturas').findOne({ numeroFactura });
+    if (!factura) return res.status(404).json({ error: 'Factura no encontrada' });
+
+    const cfg = await database.collection('configuracion').findOne({});
+    const empresa = (cfg && cfg.empresa) ? cfg.empresa : 'Mi Empresa';
+
+    const buffer = await generateInvoicePdfBuffer(factura, empresa);
+    const pdfBase64 = buffer.toString('base64');
+
+    await database.collection('facturas_pdf').updateOne(
+      { numeroFactura },
+      { $set: { numeroFactura, pdfBase64, createdAt: new Date() } },
+      { upsert: true }
+    );
+
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${req.params.numeroFactura}.pdf"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${numeroFactura}.pdf"`);
     res.send(buffer);
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
+
 
 app.listen(PORT, () => {
   console.log(`🚀 GestiónPro corriendo en http://localhost:${PORT}`);
